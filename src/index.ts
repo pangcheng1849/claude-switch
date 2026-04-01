@@ -8,6 +8,7 @@ import { detectActiveProvider, detectActiveModel, getActiveBaseUrl, switchProvid
 
 const RECONFIGURE_KEY = "__reconfigure_api_key__";
 const ESC_BYTE = "\x1b";
+const CLEAR = { clearPromptOnDone: true };
 
 /**
  * Wrap an inquirer prompt with ESC-to-cancel support.
@@ -40,13 +41,11 @@ async function main(): Promise<void> {
     const provider = PROVIDERS.find((p) => p.id === providerId);
     if (!provider) return;
 
-    // Fix #1: Skip if already on Claude native
     if (provider.id === "claude") {
       if (activeProviderId === "claude") {
         console.log("\n  Already on Claude (Native), no changes needed.");
         continue;
       }
-      // Fix #5: Warn if switching from unknown provider
       if (activeProviderId === "unknown") {
         const baseUrl = await getActiveBaseUrl();
         console.log(`\n⚠ Current config uses an unrecognized provider (${baseUrl})`);
@@ -58,24 +57,20 @@ async function main(): Promise<void> {
       return;
     }
 
-    // Ensure API key is configured
     let currentConfig = config;
     let apiKey = getProviderApiKey(currentConfig, provider.id);
 
     if (!apiKey) {
-      console.log(`\n⚠ ${provider.displayName} API Key not configured`);
       const inputKey = await promptApiKeyLoop(provider.apiKeyUrl);
-      if (inputKey === null) continue; // ESC — back
+      if (inputKey === null) continue;
       apiKey = inputKey;
       currentConfig = setProviderApiKey(currentConfig, provider.id, apiKey);
       await writeConfig(currentConfig);
       console.log("✔ API Key saved\n");
     }
 
-    // Single model provider
     if (provider.models.length === 1) {
       const modelName = provider.models[0].name;
-      // Fix #1: Skip if already active with same model
       if (activeProviderId === provider.id) {
         console.log(`\n  Already on ${provider.displayName} / ${modelName}, no changes needed.`);
         continue;
@@ -90,11 +85,9 @@ async function main(): Promise<void> {
       return;
     }
 
-    // Multi-model provider
     const result = await selectModel(provider.displayName, provider.models, provider.apiKeyUrl, currentConfig, provider.id, activeProviderId === provider.id ? activeModel : undefined);
     if (result === null) continue;
 
-    // Fix #1: Skip if same provider + same model
     if (activeProviderId === provider.id && activeModel === result) {
       console.log(`\n  Already on ${provider.displayName} / ${result}, no changes needed.`);
       continue;
@@ -104,7 +97,6 @@ async function main(): Promise<void> {
     const finalApiKey = getProviderApiKey(finalConfig, provider.id);
     if (!finalApiKey) continue;
 
-    // Fix #5: Warn if switching from unknown provider
     if (activeProviderId === "unknown") {
       const baseUrl = await getActiveBaseUrl();
       console.log(`\n⚠ Current config uses an unrecognized provider (${baseUrl})`);
@@ -126,6 +118,7 @@ async function selectProvider(
   try {
     return await withEsc(select({
       message: "Select Provider (ESC to quit)",
+      loop: false,
       choices: PROVIDERS.map((p) => {
         let hint: string;
         if (p.id === activeProviderId) {
@@ -139,21 +132,21 @@ async function selectProvider(
         }
         return {
           name: hint ? `${p.displayName}  ${hint}` : p.displayName,
+          short: p.displayName,
           value: p.id,
         };
       }),
-    }));
+    }, CLEAR));
   } catch (err) {
     if (isCancelled(err)) return null;
     throw err;
   }
 }
 
-// Fix #3: Loop on empty input instead of silently returning
 async function promptApiKeyLoop(apiKeyUrl: string): Promise<string | null> {
   while (true) {
     const result = await promptApiKey(apiKeyUrl);
-    if (result === null) return null; // ESC
+    if (result === null) return null;
     if (result === "") {
       console.log("  API Key cannot be empty, please try again.");
       continue;
@@ -167,21 +160,18 @@ async function promptApiKey(apiKeyUrl: string): Promise<string | null | ""> {
     const key = await withEsc(password({
       message: `Enter API Key (get it from ${apiKeyUrl})`,
       mask: "*",
-    }));
+    }, CLEAR));
     const trimmed = key?.trim() ?? "";
     return trimmed.length > 0 ? trimmed : "";
   } catch (err) {
-    if (isCancelled(err)) {
-      console.log("  Cancelled.");
-      return null;
-    }
+    if (isCancelled(err)) return null;
     throw err;
   }
 }
 
 async function confirmAction(message: string): Promise<boolean> {
   try {
-    return await withEsc(confirm({ message, default: false }));
+    return await withEsc(confirm({ message, default: false }, CLEAR));
   } catch (err) {
     if (isCancelled(err)) return false;
     throw err;
@@ -197,7 +187,6 @@ function printSwitchResult(providerName: string, model: string | undefined, warn
   console.log("  Please restart Claude Code to apply");
 }
 
-// Fix #2: Stay in menu after reconfigure (continue instead of return)
 async function selectSingleModelAction(
   providerName: string,
   modelName: string,
@@ -209,11 +198,12 @@ async function selectSingleModelAction(
     try {
       const result = await withEsc(select({
         message: `${providerName} (${modelName}) (ESC to go back)`,
+        loop: false,
         choices: [
           { name: `Switch to ${modelName}`, value: "switch" as const },
           { name: "🔑 Reconfigure API Key", value: RECONFIGURE_KEY },
         ],
-      }));
+      }, CLEAR));
 
       if (result === RECONFIGURE_KEY) {
         const newKey = await promptApiKeyLoop(apiKeyUrl);
@@ -223,7 +213,7 @@ async function selectSingleModelAction(
           config = updated;
           console.log("✔ API Key updated\n");
         }
-        continue; // Stay in menu
+        continue;
       }
 
       return "switch";
@@ -234,7 +224,6 @@ async function selectSingleModelAction(
   }
 }
 
-// Fix #4: Move Reconfigure below models
 async function selectModel(
   providerName: string,
   models: ProviderModel[],
@@ -247,20 +236,23 @@ async function selectModel(
     try {
       const modelChoices = models.map((m) => {
         const isActive = m.name === currentActiveModel;
+        const label = m.displayName ?? m.name;
         return {
-          name: isActive ? `${m.displayName ?? m.name}  ● active` : (m.displayName ?? m.name),
+          name: isActive ? `${label}  ● active` : label,
+          short: label,
           value: m.name,
         };
       });
       const result = await withEsc(select({
         message: `Select model (${providerName}) (ESC to go back)`,
+        loop: false,
         default: modelChoices[0].value,
         choices: [
           ...modelChoices,
           new Separator(""),
           { name: "🔑 Reconfigure API Key", value: RECONFIGURE_KEY },
         ],
-      }));
+      }, CLEAR));
 
       if (result === RECONFIGURE_KEY) {
         const newKey = await promptApiKeyLoop(apiKeyUrl);
