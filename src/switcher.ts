@@ -5,6 +5,7 @@ import {
   type SwitchConfig,
 } from "./config.js";
 import { readSettings, writeSettings, type ClaudeSettings } from "./settings.js";
+import { log } from "./logger.js";
 
 const SHELL_OVERRIDE_KEYS = ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"] as const;
 
@@ -135,6 +136,27 @@ export async function switchProvider(
   await writeSettings({
     ...settings,
     env: Object.keys(newEnv).length > 0 ? newEnv : undefined,
+  });
+
+  const currentModel = typeof currentEnv.ANTHROPIC_MODEL === "string"
+    ? currentEnv.ANTHROPIC_MODEL
+    : typeof currentEnv.ANTHROPIC_DEFAULT_OPUS_MODEL === "string"
+      ? currentEnv.ANTHROPIC_DEFAULT_OPUS_MODEL
+      : undefined;
+
+  // Redact API key from env for logging
+  const logEnv = { ...newEnv };
+  if ("ANTHROPIC_AUTH_TOKEN" in logEnv) {
+    const token = String(logEnv.ANTHROPIC_AUTH_TOKEN);
+    logEnv.ANTHROPIC_AUTH_TOKEN = token.length > 8
+      ? token.slice(0, 4) + "****" + token.slice(-4)
+      : "****";
+  }
+
+  await log("switch", {
+    from: { provider: currentProviderId, model: currentModel },
+    to: { provider: provider.id, model: model || undefined },
+    envWritten: Object.keys(logEnv).length > 0 ? logEnv : null,
   });
 
   return checkShellOverrides();

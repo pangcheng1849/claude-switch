@@ -5,6 +5,7 @@ import { CancelPromptError, ExitPromptError } from "@inquirer/core";
 import { PROVIDERS, type ProviderModel } from "./providers.js";
 import { readConfig, writeConfig, getProviderApiKey, setProviderApiKey, type SwitchConfig } from "./config.js";
 import { detectActiveProvider, detectActiveModel, getActiveBaseUrl, switchProvider } from "./switcher.js";
+import { log } from "./logger.js";
 
 const RECONFIGURE_KEY = "__reconfigure_api_key__";
 const ESC_BYTE = "\x1b";
@@ -67,6 +68,7 @@ async function main(): Promise<void> {
       currentConfig = setProviderApiKey(currentConfig, provider.id, apiKey);
       await writeConfig(currentConfig);
       console.log("✔ API Key saved\n");
+      await log("api-key-configured", { provider: provider.id });
     }
 
     if (provider.models.length === 1) {
@@ -212,6 +214,7 @@ async function selectSingleModelAction(
           await writeConfig(updated);
           config = updated;
           console.log("✔ API Key updated\n");
+          await log("api-key-reconfigured", { provider: providerId });
         }
         continue;
       }
@@ -261,6 +264,7 @@ async function selectModel(
           await writeConfig(updated);
           config = updated;
           console.log("✔ API Key updated\n");
+          await log("api-key-reconfigured", { provider: providerId });
         }
         continue;
       }
