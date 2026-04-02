@@ -83,6 +83,8 @@ async function refreshMcpsForProvider(
 }
 
 async function manageMcps(config: SwitchConfig): Promise<void> {
+  let changed = false;
+  let lastSelected: string | undefined;
   while (true) {
     const currentServers = await readMcpServers();
 
@@ -127,10 +129,13 @@ async function manageMcps(config: SwitchConfig): Promise<void> {
       const selected = await withEsc(select({
         message: "Manage MCP Servers (ESC to go back)",
         loop: false,
+        default: lastSelected,
+        theme: { keybindings: ["vim"] },
         choices,
-      }, CLEAR));
+      }));
 
       if (!selected) continue;
+      lastSelected = selected;
 
       const mcp = MCP_REGISTRY.find((m) => m.id === selected);
       if (!mcp) continue;
@@ -139,12 +144,9 @@ async function manageMcps(config: SwitchConfig): Promise<void> {
       if (!apiKey) continue;
 
       const isEnabled = selected in currentServers;
-      const action = isEnabled ? "disable" : "enable";
-      const ok = await confirmAction(`${isEnabled ? "Disable" : "Enable"} ${mcp.displayName} (${mcp.description})?`);
-      if (!ok) continue;
 
       if (isEnabled) {
-        // Disable
+        // Disable (toggle on Enter)
         const updated = { ...currentServers };
         delete updated[selected];
         await writeMcpServers(updated);
@@ -154,39 +156,49 @@ async function manageMcps(config: SwitchConfig): Promise<void> {
         };
         if (config.enabledMcps!.length === 0) config.enabledMcps = undefined;
         await writeConfig(config);
-        console.log(`  ✔ Disabled ${mcp.displayName}`);
+        changed = true;
         await log("mcp-disabled", { mcpId: mcp.id, provider: mcp.providerId, remainingEnabled: config.enabledMcps ?? [] });
       } else {
-        // Enable
+        // Enable (toggle on Enter, deduplicate enabledMcps)
         const updated = {
           ...currentServers,
           [selected]: mcp.buildConfig(apiKey),
         };
         await writeMcpServers(updated);
+        const newEnabled = [...new Set([...(config.enabledMcps ?? []), selected])];
         config = {
           ...config,
-          enabledMcps: [...(config.enabledMcps ?? []), selected],
+          enabledMcps: newEnabled,
         };
         await writeConfig(config);
-        console.log(`  ✔ Enabled ${mcp.displayName}`);
-        console.log("  Please restart Claude Code to apply");
+        changed = true;
         await log("mcp-enabled", { mcpId: mcp.id, provider: mcp.providerId, allEnabled: config.enabledMcps ?? [] });
       }
     } catch (err) {
-      if (isCancelled(err)) return;
+      if (isCancelled(err)) {
+        if (changed) {
+          console.log("  Please restart Claude Code to apply MCP changes");
+        }
+        return;
+      }
       throw err;
     }
   }
 }
 
 async function main(): Promise<void> {
+  let lastProviderId: string | undefined;
   while (true) {
     const config = await readConfig();
     const activeProviderId = await detectActiveProvider();
     const activeModel = await detectActiveModel();
+    const currentServers = await readMcpServers();
+    const mcpActiveCount = MCP_REGISTRY.filter((m) => m.id in currentServers).length;
 
-    const providerId = await selectProvider(activeProviderId, activeModel, config);
+    const providerId = await selectProvider(activeProviderId, activeModel, config, mcpActiveCount, lastProviderId);
     if (providerId === null) return;
+
+    lastProviderId = providerId;
 
     if (providerId === MANAGE_MCP_KEY) {
       await manageMcps(config);
@@ -270,14 +282,17 @@ async function selectProvider(
   activeProviderId: string,
   activeModel: string | undefined,
   config: SwitchConfig,
+  mcpActiveCount: number,
+  defaultValue?: string,
 ): Promise<string | null> {
-  const enabledCount = config.enabledMcps?.length ?? 0;
   const totalCount = MCP_REGISTRY.length;
 
   try {
     return await withEsc(select({
       message: "Select Provider (ESC to quit)",
       loop: false,
+      default: defaultValue,
+      theme: { keybindings: ["vim"] },
       choices: [
         ...PROVIDERS.map((p) => {
           let hint: string;
@@ -298,12 +313,12 @@ async function selectProvider(
         }),
         new Separator(""),
         {
-          name: `⚙  Manage MCP Servers (${enabledCount}/${totalCount} active)`,
+          name: `⚙  Manage MCP Servers (${mcpActiveCount}/${totalCount} active)`,
           short: "Manage MCP Servers",
           value: MANAGE_MCP_KEY,
         },
       ],
-    }, CLEAR));
+    }));
   } catch (err) {
     if (isCancelled(err)) return null;
     throw err;
