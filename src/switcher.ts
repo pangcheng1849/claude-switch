@@ -4,7 +4,7 @@ import {
   writeConfig,
   type SwitchConfig,
 } from "./config.js";
-import { readSettings, writeSettings, type ClaudeSettings } from "./settings.js";
+import { readSettings, writeSettings, readMcpServers, writeMcpServers, type ClaudeSettings } from "./settings.js";
 import { log } from "./logger.js";
 
 const SHELL_OVERRIDE_KEYS = ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"] as const;
@@ -97,11 +97,16 @@ function cleanManagedKeys(
  * Switch to a specific provider and model.
  * Handles env cleanup, native backup/restore, and writing new env.
  */
+export interface SwitchResult {
+  warnings: string[];
+  cleanedMcps: string[];
+}
+
 export async function switchProvider(
   provider: ProviderDefinition,
   model: string,
   apiKey: string,
-): Promise<string[]> {
+): Promise<SwitchResult> {
   const config = await readConfig();
   const settings = await readSettings();
   const currentEnv = settings.env ?? {};
@@ -117,6 +122,7 @@ export async function switchProvider(
 
   // Clean all managed keys
   let newEnv = cleanManagedKeys(currentEnv);
+  let cleanedMcps: string[] = [];
 
   if (provider.id === "claude") {
     // Restore native backup if available
@@ -137,6 +143,11 @@ export async function switchProvider(
     ...settings,
     env: Object.keys(newEnv).length > 0 ? newEnv : undefined,
   });
+
+  // Remove managed MCP servers from ~/.claude.json when switching to Claude native
+  if (provider.id === "claude") {
+    cleanedMcps = await cleanupManagedMcps(updatedConfig);
+  }
 
   const currentModel = typeof currentEnv.ANTHROPIC_MODEL === "string"
     ? currentEnv.ANTHROPIC_MODEL
@@ -159,7 +170,10 @@ export async function switchProvider(
     envWritten: Object.keys(logEnv).length > 0 ? logEnv : null,
   });
 
-  return checkShellOverrides();
+  return {
+    warnings: checkShellOverrides(),
+    cleanedMcps,
+  };
 }
 
 /**
@@ -174,4 +188,35 @@ export function checkShellOverrides(): string[] {
     }
   }
   return warnings;
+}
+
+/**
+ * Remove all claude-switch managed MCP servers from settings.json.
+ * Only removes MCPs listed in config.enabledMcps, preserving user-configured ones.
+ */
+export async function cleanupManagedMcps(config: SwitchConfig): Promise<string[]> {
+  const enabledMcps = config.enabledMcps;
+  if (!enabledMcps || enabledMcps.length === 0) return [];
+
+  const currentServers = await readMcpServers();
+  const updated = { ...currentServers };
+  const removed: string[] = [];
+
+  for (const mcpId of enabledMcps) {
+    if (mcpId in updated) {
+      delete updated[mcpId];
+      removed.push(mcpId);
+    }
+  }
+
+  if (removed.length > 0) {
+    await writeMcpServers(updated);
+    await log("mcp-cleanup", { removed: removed.length, removedIds: removed, requestedIds: enabledMcps });
+  }
+
+  // Clear enabledMcps from config
+  const cleanConfig = { ...config, enabledMcps: undefined };
+  await writeConfig(cleanConfig);
+
+  return removed;
 }

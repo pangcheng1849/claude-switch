@@ -12,6 +12,7 @@ export interface ProviderConfig {
 export interface SwitchConfig {
   nativeEnvBackup?: Record<string, string | number>;
   providers?: Record<string, ProviderConfig>;
+  enabledMcps?: string[];
 }
 
 export async function readConfig(): Promise<SwitchConfig> {

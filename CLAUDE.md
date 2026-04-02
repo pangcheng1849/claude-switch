@@ -40,6 +40,8 @@ Each provider implements `ProviderDefinition` with a `buildEnv(apiKey, model)` m
 
 All inquirer prompts are wrapped with `withEsc()` for ESC-to-cancel. The main loop: select provider → input API key (if needed) → select model (multi-model) or confirm (single-model) → switch → exit. ESC at any level returns to the previous menu.
 
+**TUI language convention**: All user-facing strings in the TUI (prompts, labels, hints, descriptions) must be in English. This includes MCP display names, descriptions, provider hints, and model descriptions.
+
 ## Adding a New Provider
 
 1. Add a `ProviderDefinition` to `PROVIDERS` array in `src/providers.ts`

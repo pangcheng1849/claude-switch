@@ -1,6 +1,7 @@
 export interface ProviderModel {
   name: string;
   displayName?: string;
+  description?: string;
 }
 
 export interface ProviderDefinition {
@@ -42,15 +43,15 @@ export const PROVIDERS: ProviderDefinition[] = [
     baseUrl: "https://ark.cn-beijing.volces.com/api/coding",
     apiKeyUrl: "https://console.volcengine.com/ark/region:ark+cn-beijing/apikey",
     models: [
-      { name: "doubao-seed-2.0-code" },
-      { name: "doubao-seed-2.0-pro" },
-      { name: "doubao-seed-2.0-lite" },
-      { name: "doubao-seed-code" },
-      { name: "minimax-m2.5" },
-      { name: "glm-4.7" },
-      { name: "deepseek-v3.2" },
-      { name: "kimi-k2.5" },
-      { name: "ark-code-latest" },
+      { name: "doubao-seed-2.0-code", displayName: "Doubao Seed 2.0 Code", description: "Multimodal. Frontend-focused, multi-language" },
+      { name: "doubao-seed-2.0-pro", displayName: "Doubao Seed 2.0 Pro", description: "Multimodal. Flagship, complex reasoning" },
+      { name: "doubao-seed-2.0-lite", displayName: "Doubao Seed 2.0 Lite", description: "Multimodal. Balanced quality & speed" },
+      { name: "doubao-seed-code", displayName: "Doubao Seed Code", description: "Multimodal. Code generation & scheduling" },
+      { name: "minimax-m2.5", displayName: "MiniMax M2.5", description: "Coding & tool-calling SOTA" },
+      { name: "kimi-k2.5", displayName: "Kimi K2.5", description: "Multimodal. Frontend quality & design" },
+      { name: "glm-4.7", displayName: "GLM 4.7", description: "Code gen, debugging, full-chain" },
+      { name: "deepseek-v3.2", displayName: "DeepSeek V3.2", description: "Balanced reasoning, lightweight dev" },
+      { name: "ark-code-latest", displayName: "Auto", description: "Smart scheduling, best model match" },
     ],
     buildEnv(apiKey, model) {
       return {
