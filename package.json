@@ -1,5 +1,5 @@
 {
-  "name": "claude-switch",
+  "name": "@cheng-pang/claude-switch",
   "version": "0.2.0",
   "description": "Interactive CLI tool to switch Claude Code Model API providers",
   "type": "module",
@@ -25,6 +25,13 @@
     "switch"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pangcheng1849/claude-switch.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=18"
   },
