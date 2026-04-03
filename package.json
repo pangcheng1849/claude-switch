@@ -1,6 +1,6 @@
 {
   "name": "@ben1849/claude-switch",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Interactive CLI tool to switch Claude Code Model API providers",
   "type": "module",
   "bin": {
