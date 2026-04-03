@@ -6,8 +6,11 @@
   "bin": {
     "claude-switch": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "!dist/__tests__"
+  ],
   "scripts": {
-    "prepare": "tsc",
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
@@ -26,11 +29,11 @@
     "node": ">=18"
   },
   "dependencies": {
-    "@inquirer/prompts": "^8.3.2",
-    "@types/node": "^25.5.0",
-    "typescript": "^6.0.2"
+    "@inquirer/prompts": "^8.3.2"
   },
   "devDependencies": {
+    "@types/node": "^25.5.0",
+    "typescript": "^6.0.2",
     "vitest": "^4.1.2"
   }
 }
