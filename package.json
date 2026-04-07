@@ -27,7 +27,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pangcheng1849/claude-switch.git"
+    "url": "git+https://github.com/Ben2pc/claude-switch.git"
   },
   "publishConfig": {
     "access": "public"
