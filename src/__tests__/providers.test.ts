@@ -224,6 +224,39 @@ describe("buildCustomProviderDefinition", () => {
     expect(def.models[0].displayName).toBe("Model 1");
   });
 
+  it("forces ANTHROPIC_BASE_URL to baseUrl even when template has different value", () => {
+    const cp: CustomProviderConfig = {
+      id: "test",
+      displayName: "Test",
+      baseUrl: "https://correct.com/v1",
+      env: {
+        ANTHROPIC_BASE_URL: "https://wrong.com/v1",
+        ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}",
+      },
+    };
+    const def = buildCustomProviderDefinition(cp);
+    const env = def.buildEnv("key", "model");
+    expect(env.ANTHROPIC_BASE_URL).toBe("https://correct.com/v1");
+  });
+
+  it("passes through number values without placeholder substitution", () => {
+    const cp: CustomProviderConfig = {
+      id: "test",
+      displayName: "Test",
+      baseUrl: "https://test.com/v1",
+      env: {
+        ANTHROPIC_BASE_URL: "https://test.com/v1",
+        ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}",
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: 1,
+        API_TIMEOUT_MS: "3000000",
+      },
+    };
+    const def = buildCustomProviderDefinition(cp);
+    const env = def.buildEnv("key", "model");
+    expect(env.CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC).toBe(1);
+    expect(env.API_TIMEOUT_MS).toBe("3000000");
+  });
+
   it("sets apiKeyUrl to empty string", () => {
     const cp: CustomProviderConfig = {
       id: "test",

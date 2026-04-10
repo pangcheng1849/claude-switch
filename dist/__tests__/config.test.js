@@ -68,6 +68,14 @@ describe("writeConfig (file I/O)", () => {
         expect(written.providers).toEqual({ zhipu: { apiKey: "z" } });
         expect(written.enabledMcps).toEqual(["mcp-1"]);
     });
+    it("serializes activeProviderId", async () => {
+        const config = {
+            activeProviderId: "my-proxy",
+        };
+        await writeConfig(config);
+        const written = JSON.parse(mockWriteFile.mock.calls[0][1]);
+        expect(written.activeProviderId).toBe("my-proxy");
+    });
     it("serializes customProviders and managedEnvKeys", async () => {
         const config = {
             customProviders: [
@@ -203,6 +211,18 @@ describe("updateCustomProvider", () => {
         const result = updateCustomProvider(config, "my-proxy", { id: "new-id" });
         expect(result.customProviders[0].id).toBe("new-id");
     });
+    it("preserves other config fields", () => {
+        const config = {
+            customProviders: [cp],
+            providers: { ark: { apiKey: "k" } },
+            activeProviderId: "my-proxy",
+            managedEnvKeys: ["CUSTOM_KEY"],
+        };
+        const result = updateCustomProvider(config, "my-proxy", { displayName: "Updated" });
+        expect(result.providers?.ark?.apiKey).toBe("k");
+        expect(result.activeProviderId).toBe("my-proxy");
+        expect(result.managedEnvKeys).toEqual(["CUSTOM_KEY"]);
+    });
 });
 describe("removeCustomProvider", () => {
     const cp = {
@@ -235,6 +255,16 @@ describe("removeCustomProvider", () => {
         const config = { customProviders: [cp] };
         const result = removeCustomProvider(config, "nonexistent");
         expect(result.customProviders).toHaveLength(1);
+    });
+    it("preserves other config fields", () => {
+        const config = {
+            customProviders: [cp],
+            activeProviderId: "other",
+            managedEnvKeys: ["CUSTOM_KEY"],
+        };
+        const result = removeCustomProvider(config, "my-proxy");
+        expect(result.activeProviderId).toBe("other");
+        expect(result.managedEnvKeys).toEqual(["CUSTOM_KEY"]);
     });
 });
 describe("getCustomProvider", () => {

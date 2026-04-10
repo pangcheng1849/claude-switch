@@ -465,9 +465,105 @@ describe("runQuickSwitch", () => {
 
     vi.restoreAllMocks();
   });
+
+  it("quick-switch custom provider with no model specified uses default", async () => {
+    const logs: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...args) => {
+      logs.push(args.join(" "));
+    });
+
+    mockReadConfig.mockResolvedValue({
+      providers: { "my-proxy": { apiKey: "proxy-key" } },
+      customProviders: [
+        {
+          id: "my-proxy",
+          displayName: "My Proxy",
+          baseUrl: "https://proxy.example.com/v1",
+          models: [
+            { name: "model-a", default: true },
+            { name: "model-b" },
+          ],
+        },
+      ],
+    });
+    mockReadSettings.mockResolvedValue({});
+    mockReadMcpServers.mockResolvedValue({});
+
+    const code = await runQuickSwitch("my-proxy");
+
+    expect(code).toBe(0);
+    const output = logs.join("\n");
+    expect(output).toContain("model-a");
+
+    vi.restoreAllMocks();
+  });
+
+  it("quick-switch custom provider with invalid model shows error", async () => {
+    const errors: string[] = [];
+    vi.spyOn(console, "error").mockImplementation((...args) => {
+      errors.push(args.join(" "));
+    });
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    mockReadConfig.mockResolvedValue({
+      providers: { "my-proxy": { apiKey: "proxy-key" } },
+      customProviders: [
+        {
+          id: "my-proxy",
+          displayName: "My Proxy",
+          baseUrl: "https://proxy.example.com/v1",
+          models: [{ name: "model-a", default: true }],
+        },
+      ],
+    });
+
+    const code = await runQuickSwitch("my-proxy", "bad-model");
+
+    expect(code).toBe(1);
+    const output = errors.join("\n");
+    expect(output).toContain("bad-model");
+    expect(output).toContain("model-a");
+
+    vi.restoreAllMocks();
+  });
 });
 
 describe("runList with custom providers", () => {
+  it("shows custom provider as active when activeProviderId matches", async () => {
+    const logs: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((...args) => {
+      logs.push(args.join(" "));
+    });
+
+    mockReadConfig.mockResolvedValue({
+      providers: { "my-proxy": { apiKey: "key" } },
+      activeProviderId: "my-proxy",
+      customProviders: [
+        {
+          id: "my-proxy",
+          displayName: "My Proxy",
+          baseUrl: "https://open.bigmodel.cn/api/anthropic", // same as zhipu
+          models: [{ name: "custom-model", default: true }],
+        },
+      ],
+    });
+    mockReadSettings.mockResolvedValue({
+      env: {
+        ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic",
+        ANTHROPIC_MODEL: "custom-model",
+      },
+    });
+
+    await runList();
+
+    const output = logs.join("\n");
+    // My Proxy should show as active, not Zhipu
+    const myProxyLine = logs.find((l) => l.includes("My Proxy"));
+    expect(myProxyLine).toContain("active");
+
+    vi.restoreAllMocks();
+  });
+
   it("lists custom providers", async () => {
     const logs: string[] = [];
     vi.spyOn(console, "log").mockImplementation((...args) => {

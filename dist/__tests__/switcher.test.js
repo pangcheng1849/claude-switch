@@ -589,6 +589,54 @@ describe("custom provider switching", () => {
         expect(writtenSettings.env?.CUSTOM_TIMEOUT).toBeUndefined();
         expect(writtenSettings.env?.ANTHROPIC_MODEL).toBe("doubao-seed-2.0-code");
     });
+    it("saves activeProviderId on switch, clears on return to claude", async () => {
+        // Switch to custom provider
+        mockReadConfig.mockResolvedValue({ customProviders: [customCp] });
+        mockReadSettings.mockResolvedValue({ env: {} });
+        mockReadMcpServers.mockResolvedValue({});
+        await switchProvider(customProvider, "model-1", "key");
+        // Should save activeProviderId
+        const switchCall = mockWriteConfig.mock.calls.find((call) => call[0].activeProviderId === "my-proxy");
+        expect(switchCall).toBeDefined();
+        // Now switch back to claude
+        vi.clearAllMocks();
+        mockReadConfig.mockResolvedValue({
+            customProviders: [customCp],
+            activeProviderId: "my-proxy",
+        });
+        mockReadSettings.mockResolvedValue({
+            env: {
+                ANTHROPIC_BASE_URL: "https://my-proxy.example.com/v1",
+                ANTHROPIC_AUTH_TOKEN: "key",
+                ANTHROPIC_MODEL: "model-1",
+                CUSTOM_TIMEOUT: "5000",
+            },
+        });
+        mockReadMcpServers.mockResolvedValue({});
+        mockWriteConfig.mockResolvedValue(undefined);
+        mockWriteSettings.mockResolvedValue(undefined);
+        mockWriteMcpServers.mockResolvedValue(undefined);
+        mockLog.mockResolvedValue(undefined);
+        const claude = PROVIDERS.find((p) => p.id === "claude");
+        await switchProvider(claude, "", "");
+        // Should clear activeProviderId
+        const clearCall = mockWriteConfig.mock.calls.find((call) => call[0].activeProviderId === undefined);
+        expect(clearCall).toBeDefined();
+    });
+    it("backs up custom managed keys when leaving native", async () => {
+        mockReadConfig.mockResolvedValue({
+            customProviders: [customCp],
+            managedEnvKeys: ["CUSTOM_TIMEOUT"],
+        });
+        mockReadSettings.mockResolvedValue({
+            env: { CUSTOM_TIMEOUT: "9999" },
+        });
+        mockReadMcpServers.mockResolvedValue({});
+        await switchProvider(customProvider, "model-1", "key");
+        // nativeEnvBackup should include CUSTOM_TIMEOUT
+        const backupCall = mockWriteConfig.mock.calls.find((call) => call[0].nativeEnvBackup?.CUSTOM_TIMEOUT === "9999");
+        expect(backupCall).toBeDefined();
+    });
     it("persists new custom env keys to managedEnvKeys", async () => {
         mockReadConfig.mockResolvedValue({
             customProviders: [customCp],
