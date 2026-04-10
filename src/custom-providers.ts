@@ -460,9 +460,55 @@ async function editCustomProviderWizard(
         break;
       }
       case "models": {
-        const models = await promptModels();
-        if (models === null) return null;
-        updates = { models: models.length > 0 ? models : undefined };
+        const currentModels = cp.models ?? [];
+        const action = await withEsc(select({
+          message: `Models: ${currentModels.map((m) => m.name).join(", ") || "(none)"}`,
+          choices: [
+            { name: "+ Add model", value: "add" },
+            ...(currentModels.length > 0 ? [{ name: "- Remove model", value: "remove" }] : []),
+            { name: "↻ Replace all", value: "replace" },
+          ],
+        }, CLEAR));
+
+        if (action === "add") {
+          const name = await withEsc(input({
+            message: "Model name",
+            validate: (v) => v.trim().length > 0 || "Cannot be empty",
+          }, CLEAR));
+          const displayName = await withEsc(input({
+            message: "Display name (Enter to skip)",
+          }, CLEAR));
+          const description = await withEsc(input({
+            message: "Description (Enter to skip)",
+          }, CLEAR));
+          const model: ProviderModel = { name: name.trim() };
+          if (displayName.trim()) model.displayName = displayName.trim();
+          if (description.trim()) model.description = description.trim();
+          if (currentModels.length === 0) model.default = true;
+          updates = { models: [...currentModels, model] };
+        } else if (action === "remove") {
+          const toRemove = await withEsc(select({
+            message: "Select model to remove",
+            choices: currentModels.map((m) => ({
+              name: m.displayName ?? m.name,
+              value: m.name,
+            })),
+          }, CLEAR));
+          const remaining = currentModels.filter((m) => m.name !== toRemove);
+          if (remaining.length === 0) {
+            console.log("  Cannot remove the last model");
+            return null;
+          }
+          // If removed model was default, set first remaining as default
+          if (!remaining.some((m) => m.default)) {
+            remaining[0] = { ...remaining[0], default: true };
+          }
+          updates = { models: remaining };
+        } else {
+          const models = await promptModels();
+          if (models === null) return null;
+          updates = { models: models.length > 0 ? models : undefined };
+        }
         break;
       }
       case "env": {
