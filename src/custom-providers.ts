@@ -1,3 +1,4 @@
+import { createInterface } from "node:readline";
 import { input, select, confirm, password, Separator } from "@inquirer/prompts";
 import { CancelPromptError, ExitPromptError } from "@inquirer/core";
 import { PROVIDERS, type CustomProviderConfig, type ProviderModel } from "./providers.js";
@@ -38,6 +39,49 @@ function withEsc<T>(prompt: Promise<T> & { cancel?: () => void }): Promise<T> {
 
 function isCancelled(err: unknown): boolean {
   return err instanceof CancelPromptError || err instanceof ExitPromptError;
+}
+
+/**
+ * Read multi-line JSON from stdin. Accumulates lines until
+ * valid JSON is detected. ESC cancels, returns null.
+ */
+function readMultiLineJson(message: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    process.stdout.write(`? ${message}\n`);
+    let buffer = "";
+    const rl = createInterface({ input: process.stdin, output: process.stdout, prompt: "  " });
+    rl.prompt();
+
+    const onStdinData = (data: Buffer) => {
+      if (data.length === 1 && data.toString() === ESC_BYTE) {
+        rl.close();
+        process.stdin.removeListener("data", onStdinData);
+        resolve(null);
+      }
+    };
+    process.stdin.on("data", onStdinData);
+
+    rl.on("line", (line) => {
+      buffer += line;
+      try {
+        JSON.parse(buffer);
+        rl.close();
+        process.stdin.removeListener("data", onStdinData);
+        resolve(buffer);
+      } catch {
+        rl.prompt();
+      }
+    });
+
+    rl.on("close", () => {
+      process.stdin.removeListener("data", onStdinData);
+      if (buffer.trim()) {
+        resolve(buffer);
+      } else {
+        resolve(null);
+      }
+    });
+  });
 }
 
 /**
@@ -152,18 +196,8 @@ async function promptEnvVars(): Promise<Record<string, string> | undefined | nul
 
     if (method === "default") return undefined;
 
-    const raw = await withEsc(input({
-      message: "Paste env JSON",
-      validate: (v) => {
-        try {
-          const parsed = JSON.parse(v.trim());
-          if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return "Must be a JSON object";
-          return true;
-        } catch {
-          return "Invalid JSON";
-        }
-      },
-    }, CLEAR));
+    const raw = await readMultiLineJson("Paste env JSON (ESC to cancel):");
+    if (raw === null) return null;
 
     try {
       let parsed = JSON.parse(raw);
@@ -171,13 +205,17 @@ async function promptEnvVars(): Promise<Record<string, string> | undefined | nul
       if (parsed.env && typeof parsed.env === "object" && !Array.isArray(parsed.env)) {
         parsed = parsed.env;
       }
+      const env: Record<string, string> = {};
       for (const [key, value] of Object.entries(parsed)) {
-        if (typeof value !== "string") {
-          console.log(`  Error: value for "${key}" must be a string, got ${typeof value}`);
+        if (typeof value === "string") {
+          env[key] = value;
+        } else if (typeof value === "number" || typeof value === "boolean") {
+          env[key] = String(value);
+        } else {
+          console.log(`  Error: value for "${key}" must be a string or number, got ${typeof value}`);
           return null;
         }
       }
-      const env = parsed as Record<string, string>;
       // Auto-replace known keys with placeholders
       if (env.ANTHROPIC_AUTH_TOKEN && env.ANTHROPIC_AUTH_TOKEN !== "{{API_KEY}}") {
         env.ANTHROPIC_AUTH_TOKEN = "{{API_KEY}}";
@@ -219,14 +257,18 @@ function parseEnvJson(raw: string): { apiKey: string; env: Record<string, string
     parsed = parsed.env as Record<string, unknown>;
   }
 
+  // Coerce non-string values to strings (e.g. numbers like 1 or 3000000)
+  const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(parsed)) {
-    if (typeof value !== "string") {
-      console.log(`  Error: value for "${key}" must be a string, got ${typeof value}`);
+    if (typeof value === "string") {
+      env[key] = value;
+    } else if (typeof value === "number" || typeof value === "boolean") {
+      env[key] = String(value);
+    } else {
+      console.log(`  Error: value for "${key}" must be a string or number, got ${typeof value}`);
       return null;
     }
   }
-
-  const env = parsed as Record<string, string>;
 
   // Extract API key before replacing with placeholder
   const apiKey = env.ANTHROPIC_AUTH_TOKEN;
@@ -289,18 +331,8 @@ async function addCustomProviderWizard(config: SwitchConfig): Promise<SwitchConf
 
     if (method === "json") {
       // Paste JSON path
-      const raw = await withEsc(input({
-        message: "Paste env JSON",
-        validate: (v) => {
-          try {
-            const parsed = JSON.parse(v.trim());
-            if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return "Must be a JSON object";
-            return true;
-          } catch {
-            return "Invalid JSON";
-          }
-        },
-      }, CLEAR));
+      const raw = await readMultiLineJson("Paste env JSON (ESC to cancel):");
+      if (raw === null) return null;
 
       const result = parseEnvJson(raw);
       if (result === null) return null;
