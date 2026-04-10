@@ -23,7 +23,7 @@ Provider 目前硬编码在 `src/providers.ts` 中。用户想接入自定义代
         { "name": "gpt-4o", "default": true },
         { "name": "claude-3.5-sonnet" }
       ],
-      "envVars": {
+      "env": {
         "ANTHROPIC_BASE_URL": "https://my-proxy.example.com/v1",
         "ANTHROPIC_AUTH_TOKEN": "{{API_KEY}}",
         "ANTHROPIC_MODEL": "{{MODEL}}",
@@ -42,11 +42,11 @@ Provider 目前硬编码在 `src/providers.ts` 中。用户想接入自定义代
 | `displayName` | 是 | TUI 菜单中显示的名称。 |
 | `baseUrl` | 是 | API 基础 URL。也用于 `switcher.ts` 中的 provider 检测。 |
 | `models` | 是（TUI 添加时至少 1 个） | `{ name, displayName?, description?, default? }` 数组。 |
-| `envVars` | 否 | 显式 env 映射，直接写入 `~/.claude/settings.json`。支持 `{{API_KEY}}` 和 `{{MODEL}}` 占位符做运行时替换。 |
+| `env` | 否 | 显式 env 映射，直接写入 `~/.claude/settings.json`。支持 `{{API_KEY}}` 和 `{{MODEL}}` 占位符做运行时替换。 |
 
 ### 默认 env 行为
 
-当 `envVars` 省略时，使用默认三件套模板：
+当 `env` 省略时，使用默认三件套模板：
 
 ```json
 {
@@ -69,16 +69,16 @@ Provider 目前硬编码在 `src/providers.ts` 中。用户想接入自定义代
 
 在 `providers.ts` 中新增函数，合并内置 `PROVIDERS` 与配置中的自定义 provider，返回统一的 `ProviderDefinition[]`。
 
-自定义 provider 的 `buildEnv()` 根据 `envVars` 配置（或默认模板）进行占位符替换：
+自定义 provider 的 `buildEnv()` 根据 `env` 配置（或默认模板）进行占位符替换：
 
 ```typescript
 function buildEnvFromConfig(
-  envVars: Record<string, string>,
+  env: Record<string, string>,
   apiKey: string,
   model: string,
 ): Record<string, string | number> {
   const result: Record<string, string | number> = {};
-  for (const [key, value] of Object.entries(envVars)) {
+  for (const [key, value] of Object.entries(env)) {
     result[key] = value
       .replace(/\{\{API_KEY\}\}/g, apiKey)
       .replace(/\{\{MODEL\}\}/g, model);
@@ -137,7 +137,7 @@ function buildEnvFromConfig(
 3. **Base URL** — 文本输入，校验：以 `http://` 或 `https://` 开头
 4. **Models** — 至少添加一个模型（name、displayName?、description?、default?），可循环添加更多
 5. **API Key** — 密码输入，必填
-6. **Env Vars** — 选择输入方式：
+6. **env** — 选择输入方式：
    - 「Use default (3 vars)」→ 跳过，使用默认模板
    - 「Paste JSON」→ 粘贴一段 JSON 对象，解析校验
 7. **Confirm** — 显示摘要，确认后保存
@@ -162,7 +162,7 @@ function buildEnvFromConfig(
 - 自定义 provider 不支持 MCP 关联（MCP 管理仅限内置 provider）
 - 不做 provider 导入/导出/分享
 - 自定义 provider 不支持 `apiKeyUrl`，API Key 提示使用通用文案
-- `envVars` 的所有 value 必须是 string 类型（加载时校验，不合法则跳过并 warning）
+- `env` 的所有 value 必须是 string 类型（加载时校验，不合法则跳过并 warning）
 - `ANTHROPIC_BASE_URL` 强制等于 `baseUrl`（确保 provider 检测一致性）
 
 ## MANAGED_ENV_KEYS 影响

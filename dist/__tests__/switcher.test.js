@@ -528,7 +528,7 @@ describe("custom provider switching", () => {
         displayName: "My Proxy",
         baseUrl: "https://my-proxy.example.com/v1",
         models: [{ name: "model-1", default: true }],
-        envVars: {
+        env: {
             ANTHROPIC_BASE_URL: "https://my-proxy.example.com/v1",
             ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}",
             ANTHROPIC_MODEL: "{{MODEL}}",

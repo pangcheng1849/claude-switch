@@ -138,12 +138,12 @@ async function promptApiKey(): Promise<string | null> {
 }
 
 /**
- * Prompt for env vars.
+ * Prompt for env configuration.
  */
 async function promptEnvVars(): Promise<Record<string, string> | undefined | null> {
   try {
     const method = await withEsc(select({
-      message: "Env vars configuration",
+      message: "env configuration",
       choices: [
         { name: "Use default (BASE_URL + AUTH_TOKEN + MODEL)", value: "default" },
         { name: "Paste JSON", value: "json" },
@@ -153,7 +153,7 @@ async function promptEnvVars(): Promise<Record<string, string> | undefined | nul
     if (method === "default") return undefined;
 
     const raw = await withEsc(editor({
-      message: "Paste env vars JSON (use {{API_KEY}} and {{MODEL}} as placeholders)",
+      message: "Paste env JSON (use {{API_KEY}} and {{MODEL}} as placeholders)",
       default: JSON.stringify(
         { ANTHROPIC_BASE_URL: "", ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}", ANTHROPIC_MODEL: "{{MODEL}}" },
         null,
@@ -217,9 +217,9 @@ async function addCustomProviderWizard(config: SwitchConfig): Promise<SwitchConf
     const apiKey = await promptApiKey();
     if (apiKey === null) return null;
 
-    // 6. Env Vars
-    const envVars = await promptEnvVars();
-    if (envVars === null) return null;
+    // 6. env
+    const env = await promptEnvVars();
+    if (env === null) return null;
 
     // 7. Summary
     const cp: CustomProviderConfig = {
@@ -228,14 +228,14 @@ async function addCustomProviderWizard(config: SwitchConfig): Promise<SwitchConf
       baseUrl: baseUrl.trim(),
     };
     if (models.length > 0) cp.models = models;
-    if (envVars) cp.envVars = envVars;
+    if (env) cp.env = env;
 
     console.log("\n  Provider summary:");
     console.log(`    ID:       ${cp.id}`);
     console.log(`    Name:     ${cp.displayName}`);
     console.log(`    Base URL: ${cp.baseUrl}`);
     console.log(`    Models:   ${models.length > 0 ? models.map((m) => m.name).join(", ") : "(none)"}`);
-    console.log(`    Env Vars: ${envVars ? "custom" : "default"}`);
+    console.log(`    env: ${env ? "custom" : "default"}`);
     console.log("");
 
     const ok = await withEsc(confirm({ message: "Save this provider?", default: true }, CLEAR));
@@ -268,7 +268,7 @@ async function editCustomProviderWizard(
         { name: `Display Name: ${cp.displayName}`, value: "displayName" },
         { name: `Base URL: ${cp.baseUrl}`, value: "baseUrl" },
         { name: `Models: ${cp.models ? cp.models.map((m) => m.name).join(", ") : "(none)"}`, value: "models" },
-        { name: `Env Vars: ${cp.envVars ? "custom" : "default"}`, value: "envVars" },
+        { name: `env: ${cp.env ? "custom" : "default"}`, value: "env" },
       ],
     }, CLEAR));
 
@@ -312,11 +312,11 @@ async function editCustomProviderWizard(
         updates = { models: models.length > 0 ? models : undefined };
         break;
       }
-      case "envVars": {
+      case "env": {
         const hasModels = (cp.models ?? []).length > 0;
-        const envVars = await promptEnvVars();
-        if (envVars === null) return null;
-        updates = { envVars };
+        const env = await promptEnvVars();
+        if (env === null) return null;
+        updates = { env };
         break;
       }
     }

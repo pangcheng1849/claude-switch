@@ -109,7 +109,7 @@ describe("provider constraints", () => {
     });
 });
 describe("buildCustomProviderDefinition", () => {
-    it("uses default 3-var template when envVars is omitted and models exist", () => {
+    it("uses default 3-var template when env is omitted and models exist", () => {
         const cp = {
             id: "test",
             displayName: "Test",
@@ -138,12 +138,12 @@ describe("buildCustomProviderDefinition", () => {
             ANTHROPIC_MODEL: "some-model",
         });
     });
-    it("substitutes {{API_KEY}} and {{MODEL}} placeholders in envVars", () => {
+    it("substitutes {{API_KEY}} and {{MODEL}} placeholders in env", () => {
         const cp = {
             id: "test",
             displayName: "Test",
             baseUrl: "https://test.com/v1",
-            envVars: {
+            env: {
                 ANTHROPIC_BASE_URL: "https://test.com/v1",
                 ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}",
                 ANTHROPIC_MODEL: "{{MODEL}}",
@@ -162,7 +162,7 @@ describe("buildCustomProviderDefinition", () => {
             id: "test",
             displayName: "Test",
             baseUrl: "https://test.com/v1",
-            envVars: {
+            env: {
                 ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}",
             },
         };
@@ -232,7 +232,7 @@ describe("getAllProviders", () => {
         expect(spy).toHaveBeenCalledWith(expect.stringContaining("ark"));
         spy.mockRestore();
     });
-    it("skips custom providers with invalid envVars (non-string values)", () => {
+    it("skips custom providers with invalid env (non-string values)", () => {
         const spy = vi.spyOn(console, "warn").mockImplementation(() => { });
         const config = {
             customProviders: [
@@ -240,7 +240,7 @@ describe("getAllProviders", () => {
                     id: "bad",
                     displayName: "Bad",
                     baseUrl: "https://bad.com/v1",
-                    envVars: { SOME_KEY: 123 },
+                    env: { SOME_KEY: 123 },
                 },
             ],
         };
@@ -255,14 +255,14 @@ describe("getAllManagedEnvKeys", () => {
         const result = getAllManagedEnvKeys({});
         expect(result).toEqual([...MANAGED_ENV_KEYS]);
     });
-    it("includes custom provider envVars keys", () => {
+    it("includes custom provider env keys", () => {
         const config = {
             customProviders: [
                 {
                     id: "test",
                     displayName: "Test",
                     baseUrl: "https://test.com/v1",
-                    envVars: {
+                    env: {
                         ANTHROPIC_BASE_URL: "https://test.com/v1",
                         ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}",
                         CUSTOM_TIMEOUT: "5000",
@@ -289,7 +289,7 @@ describe("getAllManagedEnvKeys", () => {
                     id: "test",
                     displayName: "Test",
                     baseUrl: "https://test.com/v1",
-                    envVars: { ANTHROPIC_BASE_URL: "x", CUSTOM_KEY: "y" },
+                    env: { ANTHROPIC_BASE_URL: "x", CUSTOM_KEY: "y" },
                 },
             ],
         };

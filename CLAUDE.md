@@ -42,7 +42,7 @@ Each provider implements `ProviderDefinition` with a `buildEnv(apiKey, model)` m
 
 ### Custom providers
 
-Users can define custom providers via the TUI (`Manage Custom Providers`) or by editing `~/.claude-switch/config.json`. Custom providers are stored in `config.customProviders[]` and merged with built-in providers at runtime via `getAllProviders(config)`. Each custom provider specifies `id`, `displayName`, `baseUrl`, optional `models[]`, and optional `envVars` (with `{{API_KEY}}`/`{{MODEL}}` placeholders). When `envVars` is omitted, a default template is used. See `docs/superpowers/specs/2026-04-10-custom-providers-design.md` for details.
+Users can define custom providers via the TUI (`Manage Custom Providers`) or by editing `~/.claude-switch/config.json`. Custom providers are stored in `config.customProviders[]` and merged with built-in providers at runtime via `getAllProviders(config)`. Each custom provider specifies `id`, `displayName`, `baseUrl`, optional `models[]`, and optional `env` (with `{{API_KEY}}`/`{{MODEL}}` placeholders). When `env` is omitted, a default template is used. See `docs/superpowers/specs/2026-04-10-custom-providers-design.md` for details.
 
 ### TUI flow (index.ts)
 

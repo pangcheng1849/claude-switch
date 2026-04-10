@@ -19,7 +19,7 @@ export interface CustomProviderConfig {
   displayName: string;
   baseUrl: string;
   models?: ProviderModel[];
-  envVars?: Record<string, string>;
+  env?: Record<string, string>;
 }
 
 // All env keys that any provider may write — used for cleanup
@@ -124,7 +124,7 @@ export function getProvider(id: string): ProviderDefinition | undefined {
 export function buildCustomProviderDefinition(
   def: CustomProviderConfig,
 ): ProviderDefinition {
-  const template = def.envVars;
+  const template = def.env;
 
   return {
     id: def.id,
@@ -156,7 +156,7 @@ export function buildCustomProviderDefinition(
 
 /**
  * Merge built-in PROVIDERS with custom providers from config.
- * Skips custom providers with conflicting IDs or invalid envVars.
+ * Skips custom providers with conflicting IDs or invalid env.
  */
 export function getAllProviders(
   config: { customProviders?: CustomProviderConfig[] },
@@ -169,11 +169,11 @@ export function getAllProviders(
       console.warn(`Custom provider "${cp.id}" conflicts with built-in provider, skipping`);
       continue;
     }
-    // Validate envVars values are all strings
-    if (cp.envVars) {
-      const invalid = Object.entries(cp.envVars).find(([, v]) => typeof v !== "string");
+    // Validate env values are all strings
+    if (cp.env) {
+      const invalid = Object.entries(cp.env).find(([, v]) => typeof v !== "string");
       if (invalid) {
-        console.warn(`Custom provider "${cp.id}" has non-string envVars value for key "${invalid[0]}", skipping`);
+        console.warn(`Custom provider "${cp.id}" has non-string env value for key "${invalid[0]}", skipping`);
         continue;
       }
     }
@@ -199,8 +199,8 @@ export function getAllManagedEnvKeys(
 
   // Add current custom provider keys
   for (const cp of config.customProviders ?? []) {
-    if (cp.envVars) {
-      for (const key of Object.keys(cp.envVars)) {
+    if (cp.env) {
+      for (const key of Object.keys(cp.env)) {
         keys.add(key);
       }
     }
