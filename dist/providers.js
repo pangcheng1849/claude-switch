@@ -95,7 +95,6 @@ export function getProvider(id) {
  * with a functional buildEnv() method.
  */
 export function buildCustomProviderDefinition(def) {
-    const hasModels = def.models && def.models.length > 0;
     const template = def.envVars;
     return {
         id: def.id,
@@ -115,15 +114,12 @@ export function buildCustomProviderDefinition(def) {
                 result.ANTHROPIC_BASE_URL = def.baseUrl;
                 return result;
             }
-            // Default template
-            const env = {
+            // Default template: always 3 vars
+            return {
                 ANTHROPIC_BASE_URL: def.baseUrl,
                 ANTHROPIC_AUTH_TOKEN: apiKey,
+                ANTHROPIC_MODEL: model,
             };
-            if (hasModels) {
-                env.ANTHROPIC_MODEL = model;
-            }
-            return env;
         },
     };
 }

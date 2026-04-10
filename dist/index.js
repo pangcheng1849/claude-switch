@@ -220,20 +220,6 @@ async function main() {
             console.log("✔ API Key saved\n");
             await log("api-key-configured", { provider: provider.id });
         }
-        // No models: skip model selection, switch directly
-        if (provider.models.length === 0) {
-            if (activeProviderId === provider.id) {
-                console.log(`\n  Already on ${provider.displayName}, no changes needed.`);
-                continue;
-            }
-            const finalConfig = await readConfig();
-            const finalApiKey = getProviderApiKey(finalConfig, provider.id);
-            if (!finalApiKey)
-                continue;
-            const switchResult = await switchProvider(provider, "", finalApiKey);
-            printSwitchResult(provider.displayName, undefined, switchResult, false);
-            return;
-        }
         if (provider.models.length === 1) {
             const modelName = provider.models[0].name;
             if (activeProviderId === provider.id) {

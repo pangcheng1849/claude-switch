@@ -124,19 +124,19 @@ describe("buildCustomProviderDefinition", () => {
             ANTHROPIC_MODEL: "model-1",
         });
     });
-    it("uses default 2-var template when envVars is omitted and no models", () => {
+    it("uses default 3-var template even when no models defined", () => {
         const cp = {
             id: "test",
             displayName: "Test",
             baseUrl: "https://test.com/v1",
         };
         const def = buildCustomProviderDefinition(cp);
-        const env = def.buildEnv("my-key", "");
+        const env = def.buildEnv("my-key", "some-model");
         expect(env).toEqual({
             ANTHROPIC_BASE_URL: "https://test.com/v1",
             ANTHROPIC_AUTH_TOKEN: "my-key",
+            ANTHROPIC_MODEL: "some-model",
         });
-        expect(env).not.toHaveProperty("ANTHROPIC_MODEL");
     });
     it("substitutes {{API_KEY}} and {{MODEL}} placeholders in envVars", () => {
         const cp = {

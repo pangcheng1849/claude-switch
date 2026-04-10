@@ -56,14 +56,14 @@ async function promptModels() {
     const models = [];
     while (true) {
         try {
-            const addMore = await withEsc(confirm({
-                message: models.length === 0
-                    ? "Add a model? (No = skip model selection)"
-                    : "Add another model?",
-                default: models.length === 0,
-            }, CLEAR));
-            if (!addMore)
-                break;
+            if (models.length > 0) {
+                const addMore = await withEsc(confirm({
+                    message: "Add another model?",
+                    default: false,
+                }, CLEAR));
+                if (!addMore)
+                    break;
+            }
             const name = await withEsc(input({
                 message: "Model name",
                 validate: (v) => v.trim().length > 0 || "Cannot be empty",
@@ -101,12 +101,12 @@ async function promptModels() {
 /**
  * Prompt for env vars.
  */
-async function promptEnvVars(hasModels) {
+async function promptEnvVars() {
     try {
         const method = await withEsc(select({
             message: "Env vars configuration",
             choices: [
-                { name: hasModels ? "Use default (BASE_URL + AUTH_TOKEN + MODEL)" : "Use default (BASE_URL + AUTH_TOKEN)", value: "default" },
+                { name: "Use default (BASE_URL + AUTH_TOKEN + MODEL)", value: "default" },
                 { name: "Define key-value pairs", value: "kv" },
                 { name: "Paste JSON", value: "json" },
             ],
@@ -116,9 +116,7 @@ async function promptEnvVars(hasModels) {
         if (method === "json") {
             const raw = await withEsc(editor({
                 message: "Paste env vars JSON (use {{API_KEY}} and {{MODEL}} as placeholders)",
-                default: JSON.stringify(hasModels
-                    ? { ANTHROPIC_BASE_URL: "", ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}", ANTHROPIC_MODEL: "{{MODEL}}" }
-                    : { ANTHROPIC_BASE_URL: "", ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}" }, null, 2),
+                default: JSON.stringify({ ANTHROPIC_BASE_URL: "", ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}", ANTHROPIC_MODEL: "{{MODEL}}" }, null, 2),
             }));
             try {
                 const parsed = JSON.parse(raw);
@@ -194,7 +192,7 @@ async function addCustomProviderWizard(config) {
         if (models === null)
             return null;
         // 5. Env Vars
-        const envVars = await promptEnvVars(models.length > 0);
+        const envVars = await promptEnvVars();
         if (envVars === null)
             return null;
         // 6. Summary
@@ -283,7 +281,7 @@ async function editCustomProviderWizard(config, cp) {
             }
             case "envVars": {
                 const hasModels = (cp.models ?? []).length > 0;
-                const envVars = await promptEnvVars(hasModels);
+                const envVars = await promptEnvVars();
                 if (envVars === null)
                     return null;
                 updates = { envVars };

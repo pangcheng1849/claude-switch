@@ -41,27 +41,18 @@ Provider 目前硬编码在 `src/providers.ts` 中。用户想接入自定义代
 | `id` | 是 | 唯一标识符，用于 CLI quick-switch。不能与内置 provider ID 或保留词（`list`、`help`）冲突。 |
 | `displayName` | 是 | TUI 菜单中显示的名称。 |
 | `baseUrl` | 是 | API 基础 URL。也用于 `switcher.ts` 中的 provider 检测。 |
-| `models` | 否 | `{ name, displayName?, description?, default? }` 数组。省略时表示无需模型选择。 |
+| `models` | 是（TUI 添加时至少 1 个） | `{ name, displayName?, description?, default? }` 数组。 |
 | `envVars` | 否 | 显式 env 映射，直接写入 `~/.claude/settings.json`。支持 `{{API_KEY}}` 和 `{{MODEL}}` 占位符做运行时替换。 |
 
 ### 默认 env 行为
 
-当 `envVars` 省略时，根据 `models` 是否存在选择默认模板：
+当 `envVars` 省略时，使用默认三件套模板：
 
-**有 models 时**（三件套）：
 ```json
 {
   "ANTHROPIC_BASE_URL": "<baseUrl>",
   "ANTHROPIC_AUTH_TOKEN": "<apiKey>",
   "ANTHROPIC_MODEL": "<model>"
-}
-```
-
-**无 models 时**（两件套）：
-```json
-{
-  "ANTHROPIC_BASE_URL": "<baseUrl>",
-  "ANTHROPIC_AUTH_TOKEN": "<apiKey>"
 }
 ```
 
