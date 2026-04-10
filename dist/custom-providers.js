@@ -148,6 +148,44 @@ async function promptModels() {
     return models;
 }
 /**
+ * Prompt to add extra models (all optional).
+ */
+async function promptExtraModels() {
+    const models = [];
+    while (true) {
+        try {
+            const addMore = await withEsc(confirm({
+                message: "Add another model?",
+                default: false,
+            }, CLEAR));
+            if (!addMore)
+                break;
+            const name = await withEsc(input({
+                message: "Model name",
+                validate: (v) => v.trim().length > 0 || "Cannot be empty",
+            }, CLEAR));
+            const displayName = await withEsc(input({
+                message: "Display name (Enter to skip)",
+            }, CLEAR));
+            const description = await withEsc(input({
+                message: "Description (Enter to skip)",
+            }, CLEAR));
+            const model = { name: name.trim() };
+            if (displayName.trim())
+                model.displayName = displayName.trim();
+            if (description.trim())
+                model.description = description.trim();
+            models.push(model);
+        }
+        catch (err) {
+            if (isCancelled(err))
+                return null;
+            throw err;
+        }
+    }
+    return models;
+}
+/**
  * Prompt for API key (required, loop until non-empty).
  */
 async function promptApiKey() {
@@ -328,6 +366,14 @@ async function addCustomProviderWizard(config) {
                 if (promptedModels === null)
                     return null;
                 models = promptedModels;
+            }
+            else {
+                // Offer to add more models for switching
+                console.log(`  ✔ Model from JSON: ${models[0].name}`);
+                const extra = await promptExtraModels();
+                if (extra === null)
+                    return null;
+                models = [...models, ...extra];
             }
         }
         else {
