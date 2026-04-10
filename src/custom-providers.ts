@@ -153,7 +153,7 @@ async function promptEnvVars(): Promise<Record<string, string> | undefined | nul
     if (method === "default") return undefined;
 
     const raw = await withEsc(editor({
-      message: "Paste env JSON (use {{API_KEY}} and {{MODEL}} as placeholders)",
+      message: "Paste env JSON (ANTHROPIC_AUTH_TOKEN and ANTHROPIC_MODEL will be auto-replaced with placeholders)",
       default: JSON.stringify(
         { ANTHROPIC_BASE_URL: "", ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}", ANTHROPIC_MODEL: "{{MODEL}}" },
         null,
@@ -162,10 +162,14 @@ async function promptEnvVars(): Promise<Record<string, string> | undefined | nul
     }));
 
     try {
-      const parsed = JSON.parse(raw);
+      let parsed = JSON.parse(raw);
       if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
         console.log("  Error: must be a JSON object");
         return null;
+      }
+      // Unwrap if user pasted { "env": { ... } } format
+      if (parsed.env && typeof parsed.env === "object" && !Array.isArray(parsed.env)) {
+        parsed = parsed.env;
       }
       for (const [key, value] of Object.entries(parsed)) {
         if (typeof value !== "string") {
@@ -173,7 +177,15 @@ async function promptEnvVars(): Promise<Record<string, string> | undefined | nul
           return null;
         }
       }
-      return parsed as Record<string, string>;
+      const env = parsed as Record<string, string>;
+      // Auto-replace known keys with placeholders
+      if (env.ANTHROPIC_AUTH_TOKEN && env.ANTHROPIC_AUTH_TOKEN !== "{{API_KEY}}") {
+        env.ANTHROPIC_AUTH_TOKEN = "{{API_KEY}}";
+      }
+      if (env.ANTHROPIC_MODEL && env.ANTHROPIC_MODEL !== "{{MODEL}}") {
+        env.ANTHROPIC_MODEL = "{{MODEL}}";
+      }
+      return env;
     } catch {
       console.log("  Error: invalid JSON");
       return null;
