@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { PROVIDERS } from "./providers.js";
+import { PROVIDERS, getAllProviders } from "./providers.js";
 import { readConfig, getProviderApiKey } from "./config.js";
 import {
   detectActiveProviderFromSettings,
@@ -80,7 +80,8 @@ Usage:
   claude-switch list                   List available providers and status
   claude-switch --help, -h             Show this help
 
-Providers: ${providerIds}
+Built-in providers: ${providerIds}
+Custom providers can be added via the TUI (Manage Custom Providers).
 
 Examples:
   claude-switch ark                    Switch to Ark (default model)
@@ -96,7 +97,8 @@ Examples:
 export async function runList(): Promise<void> {
   const config = await readConfig();
   const settings = await readSettings();
-  const activeProviderId = detectActiveProviderFromSettings(settings);
+  const allProviders = getAllProviders(config);
+  const activeProviderId = detectActiveProviderFromSettings(settings, allProviders, config.activeProviderId);
   const env = settings.env ?? {};
   const activeModel =
     typeof env.ANTHROPIC_MODEL === "string"
@@ -107,7 +109,7 @@ export async function runList(): Promise<void> {
 
   console.log("\nAvailable providers:\n");
 
-  for (const provider of PROVIDERS) {
+  for (const provider of allProviders) {
     const isActive = provider.id === activeProviderId;
     const hasKey = provider.id === "claude" || !!getProviderApiKey(config, provider.id);
 
@@ -142,10 +144,12 @@ export async function runQuickSwitch(
   providerId: string,
   model?: string,
 ): Promise<number> {
-  // Find provider
-  const provider = PROVIDERS.find((p) => p.id === providerId);
+  // Find provider (built-in + custom)
+  const config = await readConfig();
+  const allProviders = getAllProviders(config);
+  const provider = allProviders.find((p) => p.id === providerId);
   if (!provider) {
-    const validIds = PROVIDERS.map((p) => p.id).join(", ");
+    const validIds = allProviders.map((p) => p.id).join(", ");
     console.error(`Error: Unknown provider "${providerId}". Valid providers: ${validIds}`);
     return 1;
   }
@@ -163,7 +167,6 @@ export async function runQuickSwitch(
   }
 
   // Check API key
-  const config = await readConfig();
   const apiKey = getProviderApiKey(config, provider.id);
   if (!apiKey) {
     console.error(
@@ -177,8 +180,8 @@ export async function runQuickSwitch(
   if (!resolvedModel) {
     const defaultModel = provider.models.find((m) => m.default);
     resolvedModel = defaultModel?.name ?? provider.models[0]?.name ?? "";
-  } else {
-    // Validate model exists
+  } else if (provider.models.length > 0) {
+    // Validate model exists (skip for providers with no model list)
     const validModel = provider.models.find((m) => m.name === resolvedModel);
     if (!validModel) {
       const validNames = provider.models.map((m) => m.name).join(", ");

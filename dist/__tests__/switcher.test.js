@@ -28,7 +28,7 @@ const mockLog = vi.fn();
 vi.mock("../logger.js", () => ({
     log: (...args) => mockLog(...args),
 }));
-import { PROVIDERS, MANAGED_ENV_KEYS } from "../providers.js";
+import { PROVIDERS, MANAGED_ENV_KEYS, buildCustomProviderDefinition } from "../providers.js";
 import { detectActiveProviderFromSettings, detectActiveProvider, detectActiveModel, getActiveBaseUrl, checkShellOverrides, switchProvider, cleanupManagedMcps, } from "../switcher.js";
 beforeEach(() => {
     vi.clearAllMocks();
@@ -73,12 +73,28 @@ describe("detectActiveProviderFromSettings", () => {
             env: { ANTHROPIC_BASE_URL: "https://custom.example.com/v1" },
         })).toBe("unknown");
     });
+    it("prefers stored activeProviderId when baseUrl matches", () => {
+        const customProvider = buildCustomProviderDefinition({
+            id: "my-custom",
+            displayName: "My Custom",
+            baseUrl: "https://open.bigmodel.cn/api/anthropic", // same as Zhipu
+        });
+        const allProviders = [...PROVIDERS, customProvider];
+        // Without stored ID, matches Zhipu first (built-in)
+        expect(detectActiveProviderFromSettings({ env: { ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic" } }, allProviders)).toBe("zhipu");
+        // With stored ID, matches custom provider
+        expect(detectActiveProviderFromSettings({ env: { ANTHROPIC_BASE_URL: "https://open.bigmodel.cn/api/anthropic" } }, allProviders, "my-custom")).toBe("my-custom");
+    });
+    it("falls back to baseUrl matching when stored ID's baseUrl doesn't match", () => {
+        expect(detectActiveProviderFromSettings({ env: { ANTHROPIC_BASE_URL: "https://ark.cn-beijing.volces.com/api/coding" } }, PROVIDERS, "zhipu")).toBe("ark");
+    });
 });
 // ============================================================
 // detectActiveProvider (async, delegates to readSettings)
 // ============================================================
 describe("detectActiveProvider", () => {
     it("delegates to readSettings and returns correct provider ID", async () => {
+        mockReadConfig.mockResolvedValue({});
         mockReadSettings.mockResolvedValue({
             env: { ANTHROPIC_BASE_URL: "https://ark.cn-beijing.volces.com/api/coding" },
         });
@@ -516,5 +532,124 @@ describe("cleanupManagedMcps", () => {
         });
         await cleanupManagedMcps({ enabledMcps: ["nonexistent-1", "nonexistent-2"] });
         expect(mockWriteMcpServers).not.toHaveBeenCalled();
+    });
+});
+// ============================================================
+// Custom provider switching
+// ============================================================
+describe("custom provider switching", () => {
+    const customCp = {
+        id: "my-proxy",
+        displayName: "My Proxy",
+        baseUrl: "https://my-proxy.example.com/v1",
+        models: [{ name: "model-1", default: true }],
+        env: {
+            ANTHROPIC_BASE_URL: "https://my-proxy.example.com/v1",
+            ANTHROPIC_AUTH_TOKEN: "{{API_KEY}}",
+            ANTHROPIC_MODEL: "{{MODEL}}",
+            CUSTOM_TIMEOUT: "5000",
+        },
+    };
+    const customProvider = buildCustomProviderDefinition(customCp);
+    it("detectActiveProviderFromSettings recognizes custom provider", () => {
+        const allProviders = [...PROVIDERS, customProvider];
+        const result = detectActiveProviderFromSettings({ env: { ANTHROPIC_BASE_URL: "https://my-proxy.example.com/v1" } }, allProviders);
+        expect(result).toBe("my-proxy");
+    });
+    it("switches to custom provider with correct env vars", async () => {
+        mockReadConfig.mockResolvedValue({
+            customProviders: [customCp],
+        });
+        mockReadSettings.mockResolvedValue({ env: {} });
+        mockReadMcpServers.mockResolvedValue({});
+        await switchProvider(customProvider, "model-1", "my-api-key");
+        const writtenSettings = mockWriteSettings.mock.calls[0][0];
+        expect(writtenSettings.env?.ANTHROPIC_BASE_URL).toBe("https://my-proxy.example.com/v1");
+        expect(writtenSettings.env?.ANTHROPIC_AUTH_TOKEN).toBe("my-api-key");
+        expect(writtenSettings.env?.ANTHROPIC_MODEL).toBe("model-1");
+        expect(writtenSettings.env?.CUSTOM_TIMEOUT).toBe("5000");
+    });
+    it("cleans custom env keys when switching away from custom provider", async () => {
+        mockReadConfig.mockResolvedValue({
+            customProviders: [customCp],
+            managedEnvKeys: ["CUSTOM_TIMEOUT"],
+        });
+        mockReadSettings.mockResolvedValue({
+            env: {
+                ANTHROPIC_BASE_URL: "https://my-proxy.example.com/v1",
+                ANTHROPIC_AUTH_TOKEN: "key",
+                ANTHROPIC_MODEL: "model-1",
+                CUSTOM_TIMEOUT: "5000",
+            },
+        });
+        mockReadMcpServers.mockResolvedValue({});
+        const ark = PROVIDERS.find((p) => p.id === "ark");
+        await switchProvider(ark, "doubao-seed-2.0-code", "ark-key");
+        const writtenSettings = mockWriteSettings.mock.calls[0][0];
+        expect(writtenSettings.env?.CUSTOM_TIMEOUT).toBeUndefined();
+        expect(writtenSettings.env?.ANTHROPIC_MODEL).toBe("doubao-seed-2.0-code");
+    });
+    it("saves activeProviderId on switch, clears on return to claude", async () => {
+        // Switch to custom provider
+        mockReadConfig.mockResolvedValue({ customProviders: [customCp] });
+        mockReadSettings.mockResolvedValue({ env: {} });
+        mockReadMcpServers.mockResolvedValue({});
+        await switchProvider(customProvider, "model-1", "key");
+        // Should save activeProviderId
+        const switchCall = mockWriteConfig.mock.calls.find((call) => call[0].activeProviderId === "my-proxy");
+        expect(switchCall).toBeDefined();
+        // Now switch back to claude
+        vi.clearAllMocks();
+        mockReadConfig.mockResolvedValue({
+            customProviders: [customCp],
+            activeProviderId: "my-proxy",
+        });
+        mockReadSettings.mockResolvedValue({
+            env: {
+                ANTHROPIC_BASE_URL: "https://my-proxy.example.com/v1",
+                ANTHROPIC_AUTH_TOKEN: "key",
+                ANTHROPIC_MODEL: "model-1",
+                CUSTOM_TIMEOUT: "5000",
+            },
+        });
+        mockReadMcpServers.mockResolvedValue({});
+        mockWriteConfig.mockResolvedValue(undefined);
+        mockWriteSettings.mockResolvedValue(undefined);
+        mockWriteMcpServers.mockResolvedValue(undefined);
+        mockLog.mockResolvedValue(undefined);
+        const claude = PROVIDERS.find((p) => p.id === "claude");
+        await switchProvider(claude, "", "");
+        // Should clear activeProviderId
+        const clearCall = mockWriteConfig.mock.calls.find((call) => call[0].activeProviderId === undefined);
+        expect(clearCall).toBeDefined();
+    });
+    it("backs up custom managed keys when leaving native", async () => {
+        mockReadConfig.mockResolvedValue({
+            customProviders: [customCp],
+            managedEnvKeys: ["CUSTOM_TIMEOUT"],
+        });
+        mockReadSettings.mockResolvedValue({
+            env: { CUSTOM_TIMEOUT: "9999" },
+        });
+        mockReadMcpServers.mockResolvedValue({});
+        await switchProvider(customProvider, "model-1", "key");
+        // nativeEnvBackup should include CUSTOM_TIMEOUT
+        const backupCall = mockWriteConfig.mock.calls.find((call) => call[0].nativeEnvBackup?.CUSTOM_TIMEOUT === "9999");
+        expect(backupCall).toBeDefined();
+    });
+    it("persists new custom env keys to managedEnvKeys", async () => {
+        mockReadConfig.mockResolvedValue({
+            customProviders: [customCp],
+        });
+        mockReadSettings.mockResolvedValue({ env: {} });
+        mockReadMcpServers.mockResolvedValue({});
+        await switchProvider(customProvider, "model-1", "key");
+        // Check that writeConfig was called with managedEnvKeys containing CUSTOM_TIMEOUT
+        const configCalls = mockWriteConfig.mock.calls;
+        const hasCustomKey = configCalls.some((call) => {
+            const config = call[0];
+            return config.managedEnvKeys?.includes("CUSTOM_TIMEOUT");
+        });
+        expect(hasCustomKey).toBe(true);
     });
 });

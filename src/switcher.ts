@@ -1,4 +1,4 @@
-import { MANAGED_ENV_KEYS, PROVIDERS, type ProviderDefinition } from "./providers.js";
+import { MANAGED_ENV_KEYS, PROVIDERS, getAllProviders, getAllManagedEnvKeys, type ProviderDefinition } from "./providers.js";
 import {
   readConfig,
   writeConfig,
@@ -14,12 +14,23 @@ const SHELL_OVERRIDE_KEYS = ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"] as co
  * Returns "claude" only if no ANTHROPIC_BASE_URL is set.
  * Returns "unknown" if base URL is set but doesn't match any known provider.
  */
-export function detectActiveProviderFromSettings(settings: ClaudeSettings): string {
+export function detectActiveProviderFromSettings(
+  settings: ClaudeSettings,
+  providers: ProviderDefinition[] = PROVIDERS,
+  activeProviderId?: string,
+): string {
   const env = settings.env ?? {};
 
   const baseUrl = env.ANTHROPIC_BASE_URL;
   if (typeof baseUrl === "string" && baseUrl.length > 0) {
-    for (const provider of PROVIDERS) {
+    // If we have a stored active provider ID, verify its baseUrl still matches
+    if (activeProviderId) {
+      const stored = providers.find((p) => p.id === activeProviderId);
+      if (stored && stored.baseUrl === baseUrl) {
+        return activeProviderId;
+      }
+    }
+    for (const provider of providers) {
       if (provider.id !== "claude" && provider.baseUrl === baseUrl) {
         return provider.id;
       }
@@ -34,8 +45,10 @@ export function detectActiveProviderFromSettings(settings: ClaudeSettings): stri
  * Detect which provider is currently active by reading settings.json.
  */
 export async function detectActiveProvider(): Promise<string> {
+  const config = await readConfig();
   const settings = await readSettings();
-  return detectActiveProviderFromSettings(settings);
+  const allProviders = getAllProviders(config);
+  return detectActiveProviderFromSettings(settings, allProviders, config.activeProviderId);
 }
 
 /**
@@ -64,9 +77,10 @@ export async function getActiveBaseUrl(): Promise<string | undefined> {
 async function backupNativeEnv(
   config: SwitchConfig,
   env: Record<string, string | number>,
+  managedKeys: readonly string[] = MANAGED_ENV_KEYS,
 ): Promise<SwitchConfig> {
   const backup: Record<string, string | number> = {};
-  for (const key of MANAGED_ENV_KEYS) {
+  for (const key of managedKeys) {
     if (key in env) {
       backup[key] = env[key];
     }
@@ -85,9 +99,10 @@ async function backupNativeEnv(
  */
 function cleanManagedKeys(
   env: Record<string, string | number>,
+  managedKeys: readonly string[] = MANAGED_ENV_KEYS,
 ): Record<string, string | number> {
   const cleaned = { ...env };
-  for (const key of MANAGED_ENV_KEYS) {
+  for (const key of managedKeys) {
     delete cleaned[key];
   }
   return cleaned;
@@ -111,17 +126,21 @@ export async function switchProvider(
   const settings = await readSettings();
   const currentEnv = settings.env ?? {};
 
+  // Use dynamic provider list and managed keys for custom provider support
+  const allProviders = getAllProviders(config);
+  const allManagedKeys = getAllManagedEnvKeys(config);
+
   // Detect current provider from already-read settings (no double read)
-  const currentProviderId = detectActiveProviderFromSettings(settings);
+  const currentProviderId = detectActiveProviderFromSettings(settings, allProviders, config.activeProviderId);
 
   // Only backup when switching FROM native (not "unknown")
   let updatedConfig = config;
   if (currentProviderId === "claude" && provider.id !== "claude") {
-    updatedConfig = await backupNativeEnv(config, currentEnv);
+    updatedConfig = await backupNativeEnv(config, currentEnv, allManagedKeys);
   }
 
   // Clean all managed keys
-  let newEnv = cleanManagedKeys(currentEnv);
+  let newEnv = cleanManagedKeys(currentEnv, allManagedKeys);
   let cleanedMcps: string[] = [];
 
   if (provider.id === "claude") {
@@ -136,6 +155,17 @@ export async function switchProvider(
     // Write provider-specific env
     const providerEnv = provider.buildEnv(apiKey, model);
     newEnv = { ...newEnv, ...providerEnv };
+
+    // Persist any new env keys not already in the static managed set
+    const newCustomKeys = Object.keys(providerEnv).filter(
+      (k) => !(MANAGED_ENV_KEYS as readonly string[]).includes(k),
+    );
+    if (newCustomKeys.length > 0) {
+      const existing = new Set(updatedConfig.managedEnvKeys ?? []);
+      for (const k of newCustomKeys) existing.add(k);
+      updatedConfig = { ...updatedConfig, managedEnvKeys: [...existing] };
+      await writeConfig(updatedConfig);
+    }
   }
 
   // Write settings, preserving non-env fields
@@ -143,6 +173,10 @@ export async function switchProvider(
     ...settings,
     env: Object.keys(newEnv).length > 0 ? newEnv : undefined,
   });
+
+  // Save active provider ID for accurate detection (handles same-baseUrl providers)
+  updatedConfig = { ...updatedConfig, activeProviderId: provider.id === "claude" ? undefined : provider.id };
+  await writeConfig(updatedConfig);
 
   // Remove managed MCP servers from ~/.claude.json when switching to Claude native
   if (provider.id === "claude") {
@@ -155,13 +189,19 @@ export async function switchProvider(
       ? currentEnv.ANTHROPIC_DEFAULT_OPUS_MODEL
       : undefined;
 
-  // Redact API key from env for logging
+  // Redact API key from all env values that contain it
   const logEnv = { ...newEnv };
-  if ("ANTHROPIC_AUTH_TOKEN" in logEnv) {
+  const redact = (token: string) =>
+    token.length > 8 ? token.slice(0, 4) + "****" + token.slice(-4) : "****";
+  if (apiKey) {
+    for (const [key, value] of Object.entries(logEnv)) {
+      if (typeof value === "string" && value === apiKey) {
+        logEnv[key] = redact(value);
+      }
+    }
+  } else if ("ANTHROPIC_AUTH_TOKEN" in logEnv) {
     const token = String(logEnv.ANTHROPIC_AUTH_TOKEN);
-    logEnv.ANTHROPIC_AUTH_TOKEN = token.length > 8
-      ? token.slice(0, 4) + "****" + token.slice(-4)
-      : "****";
+    logEnv.ANTHROPIC_AUTH_TOKEN = redact(token);
   }
 
   await log("switch", {

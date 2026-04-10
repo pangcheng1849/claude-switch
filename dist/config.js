@@ -41,3 +41,32 @@ export function removeProviderApiKey(config, providerId) {
         providers: Object.keys(rest).length > 0 ? rest : undefined,
     };
 }
+export function addCustomProvider(config, provider) {
+    return {
+        ...config,
+        customProviders: [...(config.customProviders ?? []), provider],
+    };
+}
+export function updateCustomProvider(config, id, updates) {
+    const existing = config.customProviders ?? [];
+    const idx = existing.findIndex((p) => p.id === id);
+    if (idx === -1)
+        return config;
+    const updated = [...existing];
+    updated[idx] = { ...updated[idx], ...updates };
+    return {
+        ...config,
+        customProviders: updated,
+    };
+}
+export function removeCustomProvider(config, id) {
+    const existing = config.customProviders ?? [];
+    const filtered = existing.filter((p) => p.id !== id);
+    return {
+        ...config,
+        customProviders: filtered.length > 0 ? filtered : undefined,
+    };
+}
+export function getCustomProvider(config, id) {
+    return config.customProviders?.find((p) => p.id === id);
+}

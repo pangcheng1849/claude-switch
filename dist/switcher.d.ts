@@ -6,7 +6,7 @@ import { type ClaudeSettings } from "./settings.js";
  * Returns "claude" only if no ANTHROPIC_BASE_URL is set.
  * Returns "unknown" if base URL is set but doesn't match any known provider.
  */
-export declare function detectActiveProviderFromSettings(settings: ClaudeSettings): string;
+export declare function detectActiveProviderFromSettings(settings: ClaudeSettings, providers?: ProviderDefinition[], activeProviderId?: string): string;
 /**
  * Detect which provider is currently active by reading settings.json.
  */

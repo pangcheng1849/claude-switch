@@ -3,8 +3,13 @@ import {
   setProviderApiKey,
   removeProviderApiKey,
   getProviderApiKey,
+  addCustomProvider,
+  updateCustomProvider,
+  removeCustomProvider,
+  getCustomProvider,
   type SwitchConfig,
 } from "../config.js";
+import type { CustomProviderConfig } from "../providers.js";
 
 // --- File I/O tests for readConfig / writeConfig ---
 
@@ -96,6 +101,31 @@ describe("writeConfig (file I/O)", () => {
     expect(written.providers).toEqual({ zhipu: { apiKey: "z" } });
     expect(written.enabledMcps).toEqual(["mcp-1"]);
   });
+
+  it("serializes activeProviderId", async () => {
+    const config: SwitchConfig = {
+      activeProviderId: "my-proxy",
+    };
+    await writeConfig(config);
+
+    const written = JSON.parse(mockWriteFile.mock.calls[0][1] as string);
+    expect(written.activeProviderId).toBe("my-proxy");
+  });
+
+  it("serializes customProviders and managedEnvKeys", async () => {
+    const config: SwitchConfig = {
+      customProviders: [
+        { id: "my-proxy", displayName: "My Proxy", baseUrl: "https://example.com/v1" },
+      ],
+      managedEnvKeys: ["CUSTOM_KEY"],
+    };
+    await writeConfig(config);
+
+    const written = JSON.parse(mockWriteFile.mock.calls[0][1] as string);
+    expect(written.customProviders).toHaveLength(1);
+    expect(written.customProviders[0].id).toBe("my-proxy");
+    expect(written.managedEnvKeys).toEqual(["CUSTOM_KEY"]);
+  });
 });
 
 describe("getProviderApiKey", () => {
@@ -174,5 +204,151 @@ describe("removeProviderApiKey", () => {
     };
     const result = removeProviderApiKey(config, "ark");
     expect(result.enabledMcps).toEqual(["mcp-1"]);
+  });
+});
+
+describe("addCustomProvider", () => {
+  const cp: CustomProviderConfig = {
+    id: "my-proxy",
+    displayName: "My Proxy",
+    baseUrl: "https://example.com/v1",
+  };
+
+  it("adds to empty config", () => {
+    const result = addCustomProvider({}, cp);
+    expect(result.customProviders).toHaveLength(1);
+    expect(result.customProviders![0].id).toBe("my-proxy");
+  });
+
+  it("appends to existing custom providers", () => {
+    const existing: CustomProviderConfig = {
+      id: "other",
+      displayName: "Other",
+      baseUrl: "https://other.com/v1",
+    };
+    const config: SwitchConfig = { customProviders: [existing] };
+    const result = addCustomProvider(config, cp);
+    expect(result.customProviders).toHaveLength(2);
+  });
+
+  it("preserves other config fields", () => {
+    const config: SwitchConfig = {
+      providers: { ark: { apiKey: "k" } },
+      enabledMcps: ["mcp-1"],
+    };
+    const result = addCustomProvider(config, cp);
+    expect(result.providers?.ark?.apiKey).toBe("k");
+    expect(result.enabledMcps).toEqual(["mcp-1"]);
+  });
+});
+
+describe("updateCustomProvider", () => {
+  const cp: CustomProviderConfig = {
+    id: "my-proxy",
+    displayName: "My Proxy",
+    baseUrl: "https://example.com/v1",
+  };
+
+  it("updates existing provider by id", () => {
+    const config: SwitchConfig = { customProviders: [cp] };
+    const result = updateCustomProvider(config, "my-proxy", { displayName: "Updated" });
+    expect(result.customProviders![0].displayName).toBe("Updated");
+    expect(result.customProviders![0].baseUrl).toBe("https://example.com/v1");
+  });
+
+  it("returns unchanged config if id not found", () => {
+    const config: SwitchConfig = { customProviders: [cp] };
+    const result = updateCustomProvider(config, "nonexistent", { displayName: "X" });
+    expect(result).toEqual(config);
+  });
+
+  it("can update id itself", () => {
+    const config: SwitchConfig = { customProviders: [cp] };
+    const result = updateCustomProvider(config, "my-proxy", { id: "new-id" });
+    expect(result.customProviders![0].id).toBe("new-id");
+  });
+
+  it("preserves other config fields", () => {
+    const config: SwitchConfig = {
+      customProviders: [cp],
+      providers: { ark: { apiKey: "k" } },
+      activeProviderId: "my-proxy",
+      managedEnvKeys: ["CUSTOM_KEY"],
+    };
+    const result = updateCustomProvider(config, "my-proxy", { displayName: "Updated" });
+    expect(result.providers?.ark?.apiKey).toBe("k");
+    expect(result.activeProviderId).toBe("my-proxy");
+    expect(result.managedEnvKeys).toEqual(["CUSTOM_KEY"]);
+  });
+});
+
+describe("removeCustomProvider", () => {
+  const cp: CustomProviderConfig = {
+    id: "my-proxy",
+    displayName: "My Proxy",
+    baseUrl: "https://example.com/v1",
+  };
+
+  it("removes provider by id", () => {
+    const config: SwitchConfig = { customProviders: [cp] };
+    const result = removeCustomProvider(config, "my-proxy");
+    expect(result.customProviders).toBeUndefined();
+  });
+
+  it("sets customProviders to undefined when last removed", () => {
+    const config: SwitchConfig = { customProviders: [cp] };
+    const result = removeCustomProvider(config, "my-proxy");
+    expect(result.customProviders).toBeUndefined();
+  });
+
+  it("preserves other custom providers", () => {
+    const other: CustomProviderConfig = {
+      id: "other",
+      displayName: "Other",
+      baseUrl: "https://other.com/v1",
+    };
+    const config: SwitchConfig = { customProviders: [cp, other] };
+    const result = removeCustomProvider(config, "my-proxy");
+    expect(result.customProviders).toHaveLength(1);
+    expect(result.customProviders![0].id).toBe("other");
+  });
+
+  it("no-op for non-existent id", () => {
+    const config: SwitchConfig = { customProviders: [cp] };
+    const result = removeCustomProvider(config, "nonexistent");
+    expect(result.customProviders).toHaveLength(1);
+  });
+
+  it("preserves other config fields", () => {
+    const config: SwitchConfig = {
+      customProviders: [cp],
+      activeProviderId: "other",
+      managedEnvKeys: ["CUSTOM_KEY"],
+    };
+    const result = removeCustomProvider(config, "my-proxy");
+    expect(result.activeProviderId).toBe("other");
+    expect(result.managedEnvKeys).toEqual(["CUSTOM_KEY"]);
+  });
+});
+
+describe("getCustomProvider", () => {
+  const cp: CustomProviderConfig = {
+    id: "my-proxy",
+    displayName: "My Proxy",
+    baseUrl: "https://example.com/v1",
+  };
+
+  it("returns provider by id", () => {
+    const config: SwitchConfig = { customProviders: [cp] };
+    expect(getCustomProvider(config, "my-proxy")).toEqual(cp);
+  });
+
+  it("returns undefined for missing id", () => {
+    const config: SwitchConfig = { customProviders: [cp] };
+    expect(getCustomProvider(config, "nonexistent")).toBeUndefined();
+  });
+
+  it("returns undefined when customProviders is undefined", () => {
+    expect(getCustomProvider({}, "my-proxy")).toBeUndefined();
   });
 });

@@ -1,16 +1,18 @@
 #!/usr/bin/env node
 import { select, password, confirm, Separator } from "@inquirer/prompts";
 import { CancelPromptError, ExitPromptError } from "@inquirer/core";
-import { PROVIDERS } from "./providers.js";
+import { PROVIDERS, getAllProviders } from "./providers.js";
 import { MCP_REGISTRY, MCP_PROVIDER_BUILTIN } from "./mcps.js";
 import { readConfig, writeConfig, getProviderApiKey, setProviderApiKey, removeProviderApiKey } from "./config.js";
 import { readMcpServers, writeMcpServers } from "./settings.js";
 import { detectActiveProvider, detectActiveModel, getActiveBaseUrl, switchProvider } from "./switcher.js";
 import { log } from "./logger.js";
+import { manageCustomProviders } from "./custom-providers.js";
 import { parseArgs, printVersion, printHelp, runList, runQuickSwitch } from "./cli.js";
 const RECONFIGURE_KEY = "__reconfigure_api_key__";
 const REMOVE_KEY = "__remove_api_key__";
 const MANAGE_MCP_KEY = "__manage_mcp__";
+const MANAGE_CUSTOM_PROVIDERS_KEY = "__manage_custom_providers__";
 const ESC_BYTE = "\x1b";
 const CLEAR = { clearPromptOnDone: true };
 /**
@@ -182,7 +184,12 @@ async function main() {
             await manageMcps(config);
             continue;
         }
-        const provider = PROVIDERS.find((p) => p.id === providerId);
+        if (providerId === MANAGE_CUSTOM_PROVIDERS_KEY) {
+            await manageCustomProviders(config);
+            continue;
+        }
+        const allProviders = getAllProviders(config);
+        const provider = allProviders.find((p) => p.id === providerId);
         if (!provider)
             return;
         if (provider.id === "claude") {
@@ -255,40 +262,54 @@ async function main() {
 }
 async function selectProvider(activeProviderId, activeModel, config, mcpActiveCount, defaultValue) {
     const totalCount = MCP_REGISTRY.length;
+    const allProviders = getAllProviders(config);
+    const customProviders = config.customProviders ?? [];
     try {
+        const providerChoices = allProviders.map((p) => {
+            let hint;
+            if (p.id === activeProviderId) {
+                hint = activeModel ? `● active (${activeModel})` : "● active";
+            }
+            else if (p.id !== "claude" && getProviderApiKey(config, p.id)) {
+                hint = "✔ configured";
+            }
+            else if (p.id === "claude") {
+                hint = activeProviderId === "claude" ? "● active" : "";
+            }
+            else {
+                hint = "○ not configured";
+            }
+            return {
+                name: hint ? `${p.displayName}  ${hint}` : p.displayName,
+                short: p.displayName,
+                value: p.id,
+            };
+        });
+        // Insert separator before custom providers if any
+        const builtInCount = PROVIDERS.length;
+        const choices = [];
+        choices.push(...providerChoices.slice(0, builtInCount));
+        if (customProviders.length > 0) {
+            choices.push(new Separator("── Custom ──"));
+            choices.push(...providerChoices.slice(builtInCount));
+        }
+        choices.push(new Separator(""));
+        choices.push({
+            name: `⚙  Manage MCP Servers (${mcpActiveCount}/${totalCount} active)`,
+            short: "Manage MCP Servers",
+            value: MANAGE_MCP_KEY,
+        });
+        choices.push({
+            name: `⚙  Manage Custom Providers${customProviders.length > 0 ? ` (${customProviders.length})` : ""}`,
+            short: "Manage Custom Providers",
+            value: MANAGE_CUSTOM_PROVIDERS_KEY,
+        });
         return await withEsc(select({
             message: "Select Provider (ESC to quit)",
             loop: false,
             default: defaultValue,
             theme: { keybindings: ["vim"] },
-            choices: [
-                ...PROVIDERS.map((p) => {
-                    let hint;
-                    if (p.id === activeProviderId) {
-                        hint = activeModel ? `● active (${activeModel})` : "● active";
-                    }
-                    else if (p.id !== "claude" && getProviderApiKey(config, p.id)) {
-                        hint = "✔ configured";
-                    }
-                    else if (p.id === "claude") {
-                        hint = activeProviderId === "claude" ? "● active" : "";
-                    }
-                    else {
-                        hint = "○ not configured";
-                    }
-                    return {
-                        name: hint ? `${p.displayName}  ${hint}` : p.displayName,
-                        short: p.displayName,
-                        value: p.id,
-                    };
-                }),
-                new Separator(""),
-                {
-                    name: `⚙  Manage MCP Servers (${mcpActiveCount}/${totalCount} active)`,
-                    short: "Manage MCP Servers",
-                    value: MANAGE_MCP_KEY,
-                },
-            ],
+            choices,
         }));
     }
     catch (err) {
@@ -311,8 +332,11 @@ async function promptApiKeyLoop(apiKeyUrl) {
 }
 async function promptApiKey(apiKeyUrl) {
     try {
+        const message = apiKeyUrl
+            ? `Enter API Key (get it from ${apiKeyUrl})`
+            : "Enter API Key";
         const key = await withEsc(password({
-            message: `Enter API Key (get it from ${apiKeyUrl})`,
+            message,
             mask: "*",
         }, CLEAR));
         const trimmed = key?.trim() ?? "";
