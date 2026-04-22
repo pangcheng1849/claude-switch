@@ -79,13 +79,13 @@ describe("buildEnv", () => {
     expect(env.API_TIMEOUT_MS).toBe("3000000");
   });
 
-  it("Kimi uses ANTHROPIC_API_KEY and sets no model variable", () => {
+  it("Kimi uses ANTHROPIC_API_KEY and ANTHROPIC_MODEL", () => {
     const kimi = PROVIDERS.find((p) => p.id === "kimi")!;
     const env = kimi.buildEnv("key", "kimi-for-coding");
     expect(env.ANTHROPIC_BASE_URL).toBe("https://api.kimi.com/coding/");
     expect(env.ANTHROPIC_API_KEY).toBe("key");
+    expect(env.ANTHROPIC_MODEL).toBe("kimi-for-coding");
     expect(env).not.toHaveProperty("ANTHROPIC_AUTH_TOKEN");
-    expect(env).not.toHaveProperty("ANTHROPIC_MODEL");
     expect(env).not.toHaveProperty("ANTHROPIC_DEFAULT_OPUS_MODEL");
   });
 });
