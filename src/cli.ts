@@ -85,7 +85,7 @@ Custom providers can be added via the TUI (Manage Custom Providers).
 
 Examples:
   claude-switch ark                    Switch to Ark (default model)
-  claude-switch ark kimi-k2.5          Switch to Ark with Kimi K2.5
+  claude-switch ark kimi-k2.6          Switch to Ark with Kimi K2.6
   claude-switch claude                 Switch back to Claude (Native)
   claude-switch list                   Show all providers and models
 `);

@@ -26,7 +26,7 @@ Interactive TUI tool to switch [Claude Code](https://docs.anthropic.com/en/docs/
 | Provider | Models |
 |---|---|
 | **Claude (Native)** | Default Anthropic API |
-| **Volcano Ark** | doubao-seed-2.0-code, doubao-seed-2.0-pro, doubao-seed-2.0-lite, doubao-seed-code, minimax-m2.5, kimi-k2.5, glm-4.7, deepseek-v3.2, ark-code-latest |
+| **Volcano Ark** | doubao-seed-2.0-code, doubao-seed-2.0-pro, doubao-seed-2.0-lite, doubao-seed-code, minimax-m2.7, glm-5.1, deepseek-v3.2, kimi-k2.6, ark-code-latest |
 | **Zhipu** | GLM-5.1, GLM-5-Turbo, GLM-5 |
 | **MiniMax** | MiniMax-M2.7 |
 
