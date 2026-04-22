@@ -26,6 +26,7 @@ export interface CustomProviderConfig {
 export const MANAGED_ENV_KEYS = [
   "ANTHROPIC_BASE_URL",
   "ANTHROPIC_AUTH_TOKEN",
+  "ANTHROPIC_API_KEY",
   "ANTHROPIC_MODEL",
   "ANTHROPIC_SMALL_FAST_MODEL",
   "ANTHROPIC_DEFAULT_OPUS_MODEL",
@@ -109,6 +110,19 @@ export const PROVIDERS: ProviderDefinition[] = [
         ANTHROPIC_DEFAULT_OPUS_MODEL: model,
         ANTHROPIC_DEFAULT_SONNET_MODEL: model,
         ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+      };
+    },
+  },
+  {
+    id: "kimi",
+    displayName: "Kimi (CN)",
+    baseUrl: "https://api.kimi.com/coding/",
+    apiKeyUrl: "https://www.kimi.com/code/console",
+    models: [{ name: "kimi-for-coding", default: true }],
+    buildEnv(apiKey) {
+      return {
+        ANTHROPIC_BASE_URL: this.baseUrl,
+        ANTHROPIC_API_KEY: apiKey,
       };
     },
   },
