@@ -231,9 +231,11 @@ describe("checkShellOverrides", () => {
 
   beforeEach(() => {
     savedEnv.ANTHROPIC_AUTH_TOKEN = process.env.ANTHROPIC_AUTH_TOKEN;
+    savedEnv.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
     savedEnv.ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL;
     savedEnv.ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL;
     delete process.env.ANTHROPIC_AUTH_TOKEN;
+    delete process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_BASE_URL;
     delete process.env.ANTHROPIC_MODEL;
   });
