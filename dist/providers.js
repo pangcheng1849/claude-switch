@@ -89,6 +89,7 @@ export const PROVIDERS = [
         },
     },
     {
+        // Kimi Coding Plan uses ANTHROPIC_API_KEY (not AUTH_TOKEN) and picks the model server-side.
         id: "kimi",
         displayName: "Kimi (CN)",
         baseUrl: "https://api.kimi.com/coding/",

@@ -34,7 +34,7 @@ claude-switch modifies the `env` field in `~/.claude/settings.json` to redirect 
 3. Remove **all** managed keys from env (prevents stale cross-provider values)
 4. Merge in new provider's `buildEnv()` output
 5. If returning to Claude Native → restore from backup
-6. Warn if shell env (`ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`) will override settings
+6. Warn if shell env (`ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`) will override settings
 
 ### Provider definition pattern (providers.ts)
 
@@ -67,6 +67,7 @@ Follow [semver](https://semver.org/). Bump version in `package.json` before merg
 1. Add a `ProviderDefinition` to `PROVIDERS` array in `src/providers.ts`
 2. Implement `buildEnv(apiKey, model)` with the env vars Claude Code needs
 3. Add any new env keys to `MANAGED_ENV_KEYS` — **forgetting this causes stale values on switch**
+4. If the provider introduces a new auth env key, also add it to `SHELL_OVERRIDE_KEYS` in `src/switcher.ts` so shell-env overrides are warned about
 
 ### Custom (user-defined, no code changes)
 

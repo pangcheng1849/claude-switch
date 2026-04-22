@@ -7,7 +7,7 @@ import {
 import { readSettings, writeSettings, readMcpServers, writeMcpServers, type ClaudeSettings } from "./settings.js";
 import { log } from "./logger.js";
 
-const SHELL_OVERRIDE_KEYS = ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL"] as const;
+const SHELL_OVERRIDE_KEYS = ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL"] as const;
 
 /**
  * Detect which provider is currently active from a settings object.

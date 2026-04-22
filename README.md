@@ -6,8 +6,9 @@ Interactive TUI tool to switch [Claude Code](https://docs.anthropic.com/en/docs/
 ? Select Provider (ESC to quit)
 ❯ Claude (Native)  ● active
   Volcano Ark      ○ not configured
-  Zhipu            ✔ configured
-  MiniMax          ○ not configured
+  Zhipu (CN)       ✔ configured
+  MiniMax (CN)     ○ not configured
+  Kimi (CN)        ○ not configured
 ```
 
 ## Features
@@ -17,7 +18,7 @@ Interactive TUI tool to switch [Claude Code](https://docs.anthropic.com/en/docs/
 - MCP Server management — enable/disable MCP servers across providers
 - Model descriptions for Ark models (from official documentation)
 - Native env backup & restore when switching away from Claude
-- Shell env override detection (`ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`)
+- Shell env override detection (`ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`)
 - ESC key navigation at every menu level
 - File-based logging with API key redaction
 
